@@ -1,0 +1,87 @@
+# 用来创建证书
+# docker buildx build --load -t ohno-cert:latest <PATH_TO_DOCKERFILE>
+# docker run --rm -v <PATH_TO_CERT>:/host ohno-cert:latest /bin/bash -c 'cp /cert/* /host'
+
+FROM ubuntu:jammy
+
+WORKDIR /cert
+
+COPY <<EOF /cert/ca-csr.json
+{
+    "CN": "etcd-ca",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "ST": "GuangZhou",
+            "L": "GuangDong",
+            "O": "etcd-ca",
+            "OU": "etcd-ca"
+        }
+    ],
+    "ca": {
+        "expiry": "87600h"
+    }
+}
+EOF
+
+COPY <<EOF /cert/ca-config.json
+{
+    "signing": {
+        "default": {
+            "expiry": "87600h"
+        },
+        "profiles": {
+            "etcd-ca": {
+                "usages": [
+                    "signing",
+                    "key encipherment",
+                    "server auth",
+                    "client auth"
+                ],
+                "expiry": "87600h"
+            }
+        }
+    }
+}
+EOF
+
+COPY <<EOF /cert/etcd-csr.json
+{
+    "CN": "etcd",
+    "hosts": [
+        "localhost",
+        "127.0.0.1",
+        "etcd1",
+        "etcd2",
+        "etcd3"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [{
+        "C": "CN",
+        "ST": "GuangZhou",
+        "L": "GuangDong",
+        "O": "etcd",
+        "OU": "etcd"
+    }]
+}
+EOF
+
+RUN apt-get update && apt install -y --no-install-recommends ca-certificates wget && \
+    wget https://github.com/cloudflare/cfssl/releases/download/v1.6.5/cfssl-certinfo_1.6.5_linux_amd64 && \
+    wget https://github.com/cloudflare/cfssl/releases/download/v1.6.5/cfssljson_1.6.5_linux_amd64 && \
+    wget https://github.com/cloudflare/cfssl/releases/download/v1.6.5/cfssl_1.6.5_linux_amd64 && \
+    chmod +x cfssl* && \
+    mv cfssl-certinfo_* /usr/local/bin/cfssl-certinfo && \
+    mv cfssljson_* /usr/local/bin/cfssljson && \
+    mv cfssl_* /usr/local/bin/cfssl && \
+    cfssl gencert -initca ca-csr.json | cfssljson -bare ca && \
+    cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=etcd-ca etcd-csr.json | cfssljson -bare etcd
+
+CMD ["/bin/bash"]

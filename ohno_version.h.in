@@ -1,0 +1,3 @@
+#pragma once
+
+#define OHNO_VERSION R"(@PROJECT_VERSION@)"
