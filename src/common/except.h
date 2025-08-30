@@ -28,6 +28,6 @@ public:
 
 } // namespace except
 
-#define EXOHNO(msg, is_errno) (except::Exception((__FILE__), (__LINE__), (msg), (is_errno)))
+#define OHNO_EXCEPT(msg, is_errno) (except::Exception((__FILE__), (__LINE__), (msg), (is_errno)))
 
 } // namespace ohno

@@ -12,6 +12,7 @@ ENV TZ=Asia/Shanghai
 # x86_64 或 aarch64
 ARG ARCH
 
+WORKDIR /opt/deps
 RUN apt-get update && apt install -y --no-install-recommends ca-certificates && \
     cp /etc/apt/sources.list /etc/apt/sources.list.bak && \
     if [ "$ARCH" = "aarch64" ]; then \
@@ -35,7 +36,8 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
         # eBPF 相关
         clang libelf1 libelf-dev zlib1g-dev \
         # 第三方库依赖
-        libboost-all-dev libssl-dev libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc libcpprest-dev && \
+        ccache libcurl4-openssl-dev libz-dev \
+        libboost-all-dev libssl-dev libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     # 中文
@@ -52,7 +54,6 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
     printf '#!/bin/bash\n\nsudo /usr/bin/gdb $@' > /usr/bin/gdb_sudo && \
     chmod +x /usr/bin/gdb_sudo && \
     # 安装 cmake
-    cd /home && \
     export CMAKE_V=3.31.6 && \
     wget "https://github.com/Kitware/CMake/releases/download/v$CMAKE_V/cmake-$CMAKE_V-linux-$ARCH.tar.gz" && \
     tar -xzf "cmake-$CMAKE_V-linux-$ARCH.tar.gz" && \
@@ -73,15 +74,36 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
             break; \
         fi; \
     done; \
-    # 验证链接
     if [ ! -L /usr/bin/perf ]; then \
         echo "错误: 未找到可执行的 perf 文件" >&2; \
         exit 1; \
     fi && \
+    # 克隆依赖 cpprestsdk 和 etcd-cpp-apiv3
+    git clone -b v2.10.19 https://github.com/microsoft/cpprestsdk.git && \
+    git clone https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git && \
     # mac 全局忽略 .DS_Store 配置文件
     # ref to: https://orianna-zzo.github.io/sci-tech/2018-01/mac%E4%B8%ADgit%E5%BF%BD%E7%95%A5.ds_store%E6%96%87%E4%BB%B6/
     echo "# Mac OS specified" > ~/.gitignore_global && \
     echo "**/.DS_Store" > ~/.gitignore_global && \
     git config --global core.excludesfile ~/.gitignore_global
+
+WORKDIR /opt/deps/cpprestsdk
+RUN cmake -S . -B build -DBUILD_TESTS=OFF \
+        -DBUILD_SAMPLES=OFF \
+        -DCPPREST_EXCLUDE_WEBSOCKETS=ON \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && \
+    cmake --build build -j $(getconf _NPROCESSORS_ONLN) && \
+    cmake --install build && \
+    rm -rf build
+
+WORKDIR /opt/deps/etcd-cpp-apiv3
+RUN git checkout 7c6e714f188f9576e25e0350cac4181139eec23e && \
+    cmake -S . -B build -DBUILD_ETCD_TESTS=OFF \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && \
+    cmake --build build -j $(getconf _NPROCESSORS_ONLN) && \
+    cmake --install build && \
+    rm -rf build
 
 CMD ["/bin/bash"]

@@ -22,7 +22,7 @@ set(OHNO_EXPORT_FLAMEGRAPH_TARGET run_flamegraph)
 # 编译选项
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   message(STATUS "[编译选项]: debug")
-  add_compile_options(-Wall -Wextra -O0 -g3 -D_GLIBCXX_DEBUG)
+  add_compile_options(-Wall -Wextra -O0 -g3)
 else()
   message(STATUS "[编译选项]: release")
   add_compile_options(-Wall -Wextra -O2 -DNDEBUG)
@@ -78,17 +78,7 @@ FetchContent_MakeAvailable(magic_enum)
 message(STATUS "magic_enum 头文件目录: ${magic_enum_SOURCE_DIR}/include")
 include_directories(${magic_enum_SOURCE_DIR}/include)
 
-FetchContent_Declare(
-  etcd-cpp-apiv3
-  GIT_REPOSITORY https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git
-  GIT_TAG v0.15.4
-  SOURCE_DIR   "${OHNO_DEPS_DIR}/etcd-cpp-apiv3_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/etcd-cpp-apiv3_build"
-  SUBBUILD_DIR "${OHNO_DEPS_DIR}/etcd-cpp-apiv3_subbuild"
-)
-FetchContent_MakeAvailable(etcd-cpp-apiv3)
-message(STATUS "etcd-cpp-apiv3 头文件目录: ${etcd-cpp-apiv3_SOURCE_DIR}")
-include_directories(${etcd-cpp-apiv3_SOURCE_DIR})
+find_package(etcd-cpp-api REQUIRED)
 
 # 引入头文件
 include_directories(
@@ -137,6 +127,7 @@ add_executable(${PROJECT_NAME} ohno.cc)
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
   ${PROJECT_NAME}::core
+  etcd-cpp-api
 )
 
 # 静态检查
