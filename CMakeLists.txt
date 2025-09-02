@@ -22,7 +22,7 @@ set(OHNO_EXPORT_FLAMEGRAPH_TARGET run_flamegraph)
 # 编译选项
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   message(STATUS "[编译选项]: debug")
-  add_compile_options(-Wall -Wextra -O0 -g3)
+  add_compile_options(-Wall -Wextra -O0 -g3 -D_GLIBCXX_DEBUG)
 else()
   message(STATUS "[编译选项]: release")
   add_compile_options(-Wall -Wextra -O2 -DNDEBUG)
@@ -78,12 +78,18 @@ FetchContent_MakeAvailable(magic_enum)
 message(STATUS "magic_enum 头文件目录: ${magic_enum_SOURCE_DIR}/include")
 include_directories(${magic_enum_SOURCE_DIR}/include)
 
-find_package(etcd-cpp-api REQUIRED)
+find_package(Boost 1.70 REQUIRED)
+if (Boost_FOUND)
+  message(STATUS "Found Boost ${Boost_VERSION}")
+else()
+  message(FATAL_ERROR "Boost not found")
+endif()
 
 # 引入头文件
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_BINARY_DIR}
+  ${Boost_INCLUDE_DIRS}
 )
 
 # 单元测试
@@ -118,7 +124,9 @@ add_subdirectory(src)
 add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
   ohno_common
+  ohno_ipam
   ohno_log
+  ohno_util
 )
 add_library(${PROJECT_NAME}::core ALIAS ${PROJECT_NAME}_core)
 
@@ -127,7 +135,6 @@ add_executable(${PROJECT_NAME} ohno.cc)
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
   ${PROJECT_NAME}::core
-  etcd-cpp-api
 )
 
 # 静态检查

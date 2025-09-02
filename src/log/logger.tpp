@@ -17,7 +17,7 @@ namespace log {
  * @return std::shared_ptr<log::LoggerType> 模块日志对象
  */
 template <log::Id id>
-auto Loggable<id>::getModuleLogger() -> std::shared_ptr<log::LoggerType> {
+auto Loggable<id>::getModuleLogger() const -> std::shared_ptr<log::LoggerType> {
   return Logger::getLogger(enumName(id));
 }
 

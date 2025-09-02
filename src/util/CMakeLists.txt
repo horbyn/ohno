@@ -1,5 +1,5 @@
 file(GLOB sources "*.cc")
-add_library(ohno_ipam
+add_library(ohno_util
   STATIC
   ${sources}
 )

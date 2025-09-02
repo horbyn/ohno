@@ -33,11 +33,8 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
         iputils-ping iproute2 tcpdump lsof iptables etcd-client \
         # 静态检查、火焰图依赖、内存检查、单元测试相关
         clang-tidy linux-tools-common linux-tools-generic valgrind gcovr \
-        # eBPF 相关
-        clang libelf1 libelf-dev zlib1g-dev \
-        # 第三方库依赖
-        ccache libcurl4-openssl-dev libz-dev \
-        libboost-all-dev libssl-dev libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc && \
+        # 开发库
+        libboost-all-dev && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     # 中文
@@ -78,32 +75,10 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
         echo "错误: 未找到可执行的 perf 文件" >&2; \
         exit 1; \
     fi && \
-    # 克隆依赖 cpprestsdk 和 etcd-cpp-apiv3
-    git clone -b v2.10.19 https://github.com/microsoft/cpprestsdk.git && \
-    git clone https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git && \
     # mac 全局忽略 .DS_Store 配置文件
     # ref to: https://orianna-zzo.github.io/sci-tech/2018-01/mac%E4%B8%ADgit%E5%BF%BD%E7%95%A5.ds_store%E6%96%87%E4%BB%B6/
     echo "# Mac OS specified" > ~/.gitignore_global && \
     echo "**/.DS_Store" > ~/.gitignore_global && \
     git config --global core.excludesfile ~/.gitignore_global
-
-WORKDIR /opt/deps/cpprestsdk
-RUN cmake -S . -B build -DBUILD_TESTS=OFF \
-        -DBUILD_SAMPLES=OFF \
-        -DCPPREST_EXCLUDE_WEBSOCKETS=ON \
-        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && \
-    cmake --build build -j $(getconf _NPROCESSORS_ONLN) && \
-    cmake --install build && \
-    rm -rf build
-
-WORKDIR /opt/deps/etcd-cpp-apiv3
-RUN git checkout 7c6e714f188f9576e25e0350cac4181139eec23e && \
-    cmake -S . -B build -DBUILD_ETCD_TESTS=OFF \
-        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && \
-    cmake --build build -j $(getconf _NPROCESSORS_ONLN) && \
-    cmake --install build && \
-    rm -rf build
 
 CMD ["/bin/bash"]

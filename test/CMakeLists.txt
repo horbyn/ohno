@@ -30,15 +30,18 @@ add_custom_target(testclean
 file(GLOB DIR RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} */)
 foreach(subdir ${DIR})
   if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${subdir})
-    get_filename_component(subdir ${subdir} NAME)
-    list(APPEND TEST_EXE "${subdir}_test")
+    file(GLOB TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${subdir}/*_test.cc)
+    foreach(test_src ${TEST_SRC})
+      get_filename_component(test_src ${test_src} NAME_WE)
+      list(APPEND TEST_EXE "${test_src}")
+    endforeach()
   endif()
 endforeach()
 message(STATUS "单元测试项目: ${TEST_EXE}")
 
 setup_target_for_coverage_gcovr_html(
   NAME ${OHNO_EXPORT_TEST_TARGET}
-  EXECUTABLE cd ${CMAKE_BINARY_DIR}/test && ctest -L Unittests
+  EXECUTABLE cd ${CMAKE_BINARY_DIR}/test && ctest -L Unittests && cd ${CMAKE_BINARY_DIR}
   DEPENDENCIES
     testclean
     ${TEST_EXE}
@@ -50,17 +53,20 @@ include(GoogleTest)
 
 # 单元测试宏定义
 macro(ohno_unit_test target_name)
-  file(GLOB sources "*.cc")
   add_executable(
     ${target_name}
-    ${sources}
+    ${target_name}.cc
   )
   target_link_libraries(${target_name}
     PRIVATE
     GTest::gtest_main
+    GTest::gmock_main
     ${PROJECT_NAME}::core
   )
   gtest_discover_tests(${target_name}
     PROPERTIES LABELS "Unittests"
   )
 endmacro()
+
+add_subdirectory(ipam)
+add_subdirectory(util)

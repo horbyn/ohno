@@ -28,7 +28,7 @@ namespace log {
 using LoggerType = spdlog::logger;
 using LogLevel = spdlog::level::level_enum;
 
-enum class Id : std::uint8_t { ohno, etcdcli, MAXSIZE };
+enum class Id : std::uint8_t { ohno, env, shell, etcdcli, subnet, ipam, MAXSIZE };
 enum class Level : std::uint8_t { trace, debug, info, warn, error, critical, off, MAXSIZE };
 
 constexpr std::string_view LOGNAME_DEFAULT{"ohno"};
@@ -59,7 +59,7 @@ template <Id id>
 class Loggable : public LogConfig {
 public:
   virtual ~Loggable() = default;
-  auto getModuleLogger() -> std::shared_ptr<log::LoggerType>;
+  auto getModuleLogger() const -> std::shared_ptr<log::LoggerType>;
 };
 
 } // namespace log

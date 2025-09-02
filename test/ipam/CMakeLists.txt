@@ -1,0 +1,3 @@
+ohno_unit_test(etcd_client_shell_test)
+ohno_unit_test(ipam_test)
+ohno_unit_test(subnet_test)

@@ -1,0 +1,2 @@
+ohno_unit_test(env_std_test)
+ohno_unit_test(shell_sync_test)
