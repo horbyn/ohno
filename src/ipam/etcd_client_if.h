@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <unordered_map>
 // clang-format on
 
 namespace ohno {

@@ -4,10 +4,29 @@
 #include <system_error>
 #include <boost/process.hpp>
 #include "spdlog/fmt/fmt.h"
+#include "src/common/assert.h"
 // clang-format on
 
 namespace ohno {
 namespace util {
+
+/**
+ * @brief 执行 shell 命令
+ *
+ * @param command shell 命令（如 "ping -c5 10.0.0.1"）
+ * @param out 返回值，记录 stdout 的输出，可能为空
+ * @return true 执行成功
+ * @return false 执行失败
+ */
+auto ShellSync::execute(std::string_view command, std::string &out) -> bool {
+  std::string err{};
+  int ret = execute(command, out, err);
+  if (ret != 0 && !err.empty()) {
+    OHNO_LOG(error, "\"{}\" done but with stderr: {}", command, err);
+    return false;
+  }
+  return true;
+}
 
 /**
  * @brief 执行 shell 命令
@@ -19,14 +38,10 @@ namespace util {
  * @return shell 命令返回值
  */
 auto ShellSync::execute(std::string_view command, std::string &out, std::string &err) -> int {
+  OHNO_ASSERT(!command.empty());
+
   int exit_code = 0;
   try {
-    if (command.empty()) {
-      err = "Command is empty";
-      OHNO_LOG(error, err);
-      return -1;
-    }
-
     namespace bp = boost::process;
     bp::ipstream output{};
     bp::ipstream error{};

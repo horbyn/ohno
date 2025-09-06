@@ -1,6 +1,7 @@
 // clang-format off
 #include "env_std.h"
 #include <cstdlib>
+#include "src/common/assert.h"
 // clang-format on
 
 namespace ohno {
@@ -19,6 +20,8 @@ namespace util {
  * @return std::string 环境变量的值，无效返回空字符串
  */
 auto EnvStd::get(std::string_view env) const noexcept -> std::string {
+  OHNO_ASSERT(!env.empty());
+
   try {
     std::lock_guard<std::mutex> lock(mtx_);
     const char *val = std::getenv(env.data()); // NOLINT(concurrency-mt-unsafe)
@@ -41,15 +44,17 @@ auto EnvStd::exist(std::string_view env) const noexcept -> bool { return !get(en
  * @brief 设置环境变量
  *
  * @param env 环境变量
- * @param value 环境变量的值
+ * @param value 环境变量的值，可以为空
  * @return true 设置成功
  * @return false 设置失败
  */
 auto EnvStd::set(std::string_view env, std::string_view value) const noexcept -> bool {
+  OHNO_ASSERT(!env.empty());
+
   try {
     std::lock_guard<std::mutex> lock(mtx_);
-    if (::setenv(std::string{env}.c_str(), // NOLINT(concurrency-mt-unsafe)
-                 std::string{value}.c_str(), 1) == -1) {
+    if (::setenv(env.data(), // NOLINT(concurrency-mt-unsafe)
+                 value.data(), 1) == -1) {
       OHNO_LOG(error, "Failed to set env var");
       return false;
     }
@@ -67,9 +72,11 @@ auto EnvStd::set(std::string_view env, std::string_view value) const noexcept ->
  * @return false 还原失败，环境变量的值不会被改变
  */
 auto EnvStd::unset(std::string_view env) const noexcept -> bool {
+  OHNO_ASSERT(!env.empty());
+
   try {
     std::lock_guard<std::mutex> lock(mtx_);
-    if (::unsetenv(std::string{env}.c_str()) == -1) { // NOLINT(concurrency-mt-unsafe)
+    if (::unsetenv(env.data()) == -1) { // NOLINT(concurrency-mt-unsafe)
       OHNO_LOG(error, "Failed to unset env var");
       return false;
     }

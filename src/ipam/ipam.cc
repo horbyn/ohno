@@ -1,7 +1,9 @@
 // clang-format off
 #include "ipam.h"
-#include "subnet.h"
+#include "spdlog/fmt/fmt.h"
+#include "src/net/subnet.h"
 #include "etcd_client_shell.h"
+#include "src/common/assert.h"
 #include "src/common/except.h"
 // clang-format on
 
@@ -41,12 +43,12 @@ auto Ipam::allocateSubnet(std::string_view node_name, std::string_view subnet_po
     return true;
   }
 
-  Subnet subnet_obj{};
+  net::Subnet subnet_obj{};
   subnet_obj.init(subnet_pool);
   auto max_subnets = subnet_obj.getMaxSubnetsFromCidr(subnet_prefix);
 
   // 查找可用子网
-  for (SubnetIf::Prefix i = 0; i < max_subnets; ++i) {
+  for (net::Prefix i = 0; i < max_subnets; ++i) {
     std::string candidate_subnet = subnet_obj.generateCidr(subnet_prefix, i);
 
     if (isSubnetAvailable(candidate_subnet)) {
@@ -63,28 +65,6 @@ auto Ipam::allocateSubnet(std::string_view node_name, std::string_view subnet_po
 }
 
 /**
- * @brief 获取 Kubernetes 节点所属子网，出错返回 ohno::except::Exception
- *
- * @param node_name Kubernetes 节点名称
- * @param subnet 子网（返回值）
- * @return true 获取成功
- * @return false 获取失败
- */
-auto Ipam::getSubnet(std::string_view node_name, std::string &subnet) -> bool {
-  if (node_name.empty()) {
-    throw OHNO_EXCEPT("Kubernetes node name is empty", false);
-  }
-
-  bool ret = etcd_client_->get(std::string{ETCD_KEY_SUBNET} + "/" + std::string{node_name}, subnet);
-  if (!ret) {
-    OHNO_LOG(error, "Failed to get {}/{}", ETCD_KEY_SUBNET, node_name);
-    return false;
-  }
-  OHNO_LOG(debug, "Get {}/{} subnet: {}", ETCD_KEY_SUBNET, node_name, subnet);
-  return true;
-}
-
-/**
  * @brief 删除为 Kubernetes 节点分配的子网
  *
  * @param node_name Kubernetes 节点
@@ -93,8 +73,10 @@ auto Ipam::getSubnet(std::string_view node_name, std::string &subnet) -> bool {
  * @return false 删除失败
  */
 auto Ipam::releaseSubnet(std::string_view node_name, std::string_view subnet) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+
   // 删除 /ohno/subnets/节点名称
-  std::string key = std::string{ETCD_KEY_SUBNET} + "/" + std::string{node_name};
+  std::string key = fmt::format("{}/{}", ETCD_KEY_SUBNET, node_name);
   if (!etcd_client_->del(key)) {
     OHNO_LOG(error, "Failed to release {}/{}", ETCD_KEY_SUBNET, node_name);
     return false;
@@ -126,16 +108,16 @@ auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> boo
     return false;
   }
 
-  Subnet subnet_obj{};
+  net::Subnet subnet_obj{};
   subnet_obj.init(subnet);
   auto max_hosts = subnet_obj.getMaxHosts();
 
   // 查找可用 IP（从 .1 到 .254）
-  for (SubnetIf::Prefix i = 1; i < max_hosts - 1; ++i) {
+  for (net::Prefix i = 1; i < max_hosts - 1; ++i) {
     std::string candidate_ip = subnet_obj.generateIp(i);
 
     if (isIpAvailable(node_name, candidate_ip)) {
-      std::string key = std::string{ETCD_KEY_ADDRESS} + "/" + std::string{node_name};
+      std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
       if (etcd_client_->append(key, candidate_ip)) {
         result_ip = candidate_ip;
         return true;
@@ -148,6 +130,77 @@ auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> boo
 }
 
 /**
+ * @brief 为 Kubernetes 节点记录一个已使用的 IP
+ *
+ * @param node_name 节点名称
+ * @param ip_to_set 已使用 IP
+ * @return true 设置成功
+ * @return false 设置失败
+ */
+auto Ipam::setIp(std::string_view node_name, std::string_view ip_to_set) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!ip_to_set.empty());
+
+  std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
+  std::vector<std::string> ip_list{};
+  if (getAllIp(node_name, ip_list)) {
+    if (std::find(ip_list.begin(), ip_list.end(), ip_to_set) != ip_list.end()) {
+      OHNO_LOG(warn, "IP {} is already used", ip_to_set);
+      return false;
+    }
+  }
+
+  if (!etcd_client_->append(key, ip_to_set)) {
+    OHNO_LOG(error, "Failed to set ip {} for node {}", ip_to_set, node_name);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief 删除 Kubernetes 节点使用的 IP 地址
+ *
+ * @param node_name 节点名称
+ * @param ip_to_del 已使用的 IP 地址
+ * @return true 删除成功
+ * @return false 删除失败
+ */
+auto Ipam::releaseIp(std::string_view node_name, std::string_view ip_to_del) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+
+  // 删除 /ohno/address/${节点名字} 出现的 IP 地址
+  std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
+  if (!etcd_client_->del(key, ip_to_del)) {
+    OHNO_LOG(error, "Failed to release IP {} in {}/{}", ip_to_del, ETCD_KEY_ADDRESS, node_name);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief 获取 Kubernetes 节点所属子网，出错返回 ohno::except::Exception
+ *
+ * @param node_name Kubernetes 节点名称
+ * @param subnet 子网（返回值）
+ * @return true 获取成功
+ * @return false 获取失败
+ */
+auto Ipam::getSubnet(std::string_view node_name, std::string &subnet) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+
+  bool ret = etcd_client_->get(fmt::format("{}/{}", ETCD_KEY_SUBNET, node_name), subnet);
+  if (!ret) {
+    OHNO_LOG(error, "Failed to get {}/{}", ETCD_KEY_SUBNET, node_name);
+    return false;
+  }
+
+  // 为 Kubernetes 节点分配的子网，只要分配就一定存在，即使该节点已经没有 Pod 运行
+  OHNO_ASSERT(!subnet.empty());
+  OHNO_LOG(debug, "Get {}/{} subnet: {}", ETCD_KEY_SUBNET, node_name, subnet);
+  return true;
+}
+
+/**
  * @brief 获取 Kubernetes 节点所有已使用的 IP 地址
  *
  * @param node_name Kubernetes 节点名称
@@ -156,11 +209,9 @@ auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> boo
  * @return false 获取失败
  */
 auto Ipam::getAllIp(std::string_view node_name, std::vector<std::string> &all_ip) -> bool {
-  if (node_name.empty()) {
-    throw OHNO_EXCEPT("Kubernetes node name is empty", false);
-  }
+  OHNO_ASSERT(!node_name.empty());
 
-  if (!etcd_client_->list(std::string{ETCD_KEY_ADDRESS} + "/" + std::string{node_name}, all_ip)) {
+  if (!etcd_client_->list(fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name), all_ip)) {
     OHNO_LOG(error, "Failed to get {}/{}", ETCD_KEY_ADDRESS, node_name);
     return false;
   }
@@ -174,24 +225,6 @@ auto Ipam::getAllIp(std::string_view node_name, std::vector<std::string> &all_ip
 }
 
 /**
- * @brief 删除 Kubernetes 节点使用的 IP 地址
- *
- * @param node_name 节点名称
- * @param ip_to_del 已使用的 IP 地址
- * @return true 删除成功
- * @return false 删除失败
- */
-auto Ipam::releaseIp(std::string_view node_name, std::string_view ip_to_del) -> bool {
-  // 删除 /ohno/address/${节点名字} 出现的 IP 地址
-  std::string key = std::string{ETCD_KEY_ADDRESS} + "/" + std::string{node_name};
-  if (!etcd_client_->del(key, ip_to_del)) {
-    OHNO_LOG(error, "Failed to release IP {} in {}/{}", ip_to_del, ETCD_KEY_ADDRESS, node_name);
-    return false;
-  }
-  return true;
-}
-
-/**
  * @brief 子网是否未分配
  *
  * @param subnet 待确认的子网
@@ -199,6 +232,8 @@ auto Ipam::releaseIp(std::string_view node_name, std::string_view ip_to_del) -> 
  * @return false 已分配
  */
 auto Ipam::isSubnetAvailable(std::string_view subnet) const -> bool {
+  OHNO_ASSERT(!subnet.empty());
+
   std::vector<std::string> all_subnets{};
   auto ret = etcd_client_->list(std::string{ETCD_KEY_SUBNET}, all_subnets);
   if (!ret) {
@@ -217,9 +252,11 @@ auto Ipam::isSubnetAvailable(std::string_view subnet) const -> bool {
  * @return false 已分配
  */
 auto Ipam::isIpAvailable(std::string_view node_name, std::string_view ip_to_confirm) const -> bool {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!ip_to_confirm.empty());
+
   std::vector<std::string> all_addresses{};
-  auto ret =
-      etcd_client_->list(std::string{ETCD_KEY_ADDRESS} + std::string{node_name}, all_addresses);
+  auto ret = etcd_client_->list(fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name), all_addresses);
   if (!ret) {
     return true; // 获取失败，假设地址可用
   }

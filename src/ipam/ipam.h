@@ -18,13 +18,14 @@ public:
   auto init(std::unique_ptr<EtcdClientIf> etcd_client) -> bool;
   auto allocateSubnet(std::string_view node_name, std::string_view subnet_pool, int subnet_prefix,
                       std::string &subnet) -> bool override;
-  auto getSubnet(std::string_view node_name, std::string &subnet) -> bool override;
   auto releaseSubnet(std::string_view node_name, std::string_view subnet) -> bool override;
   auto allocateIp(std::string_view node_name, std::string &result_ip) -> bool override;
-  auto getAllIp(std::string_view node_name, std::vector<std::string> &all_ip) -> bool override;
+  auto setIp(std::string_view node_name, std::string_view ip_to_set) -> bool override;
   auto releaseIp(std::string_view node_name, std::string_view ip_to_del) -> bool override;
 
 private:
+  auto getSubnet(std::string_view node_name, std::string &subnet) -> bool;
+  auto getAllIp(std::string_view node_name, std::vector<std::string> &all_ip) -> bool;
   auto isSubnetAvailable(std::string_view subnet) const -> bool;
   auto isIpAvailable(std::string_view node_name, std::string_view ip_to_confirm) const -> bool;
 

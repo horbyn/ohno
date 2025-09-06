@@ -1,11 +1,12 @@
 // clang-format off
 #include "subnet.h"
 #include <regex>
+#include "src/common/assert.h"
 #include "src/common/except.h"
 // clang-format on
 
 namespace ohno {
-namespace ipam {
+namespace net {
 
 /**
  * @brief 根据一个 CIDR 字符串初始化子网，出错抛出 ohno::except::Exception
@@ -13,18 +14,20 @@ namespace ipam {
  * @param cidr CIDR 字符串
  */
 auto Subnet::init(std::string_view cidr) -> void {
-  static const std::regex IPv4_RE(R"(^(\d+)\.(\d+)\.(\d+)\.(\d+)/(\d+)$)");
-  static const std::regex IPv6_RE(R"(^([\da-fA-F:]+)/(\d+)$)");
+  OHNO_ASSERT(!cidr.empty());
+
+  const std::regex IPv4_RE(IPv4_REGEX.data());
+  const std::regex IPv6_RE(IPv6_REGEX.data());
 
   std::string cidr_str{cidr};
   if (std::regex_match(cidr_str, IPv4_RE)) {
     // IPv4 解析
-    ipv6_ = false;
+    ipversion_ = IpVersion::IPv4;
     subnet_v4_ = boost::asio::ip::make_network_v4(cidr_str);
     OHNO_LOG(debug, "cidr {} belongs to IPv4, with subnet {}", cidr, subnet_v4_.to_string());
   } else if (std::regex_match(cidr_str, IPv6_RE)) {
     // IPv6 解析
-    ipv6_ = true;
+    ipversion_ = IpVersion::IPv6;
     subnet_v6_ = boost::asio::ip::make_network_v6(cidr_str);
     OHNO_LOG(debug, "cidr {} belongs to IPv6, with subnet {}", cidr, subnet_v6_.to_string());
   } else {
@@ -62,7 +65,7 @@ auto Subnet::getPrefix() const -> Prefix {
 auto Subnet::generateCidr(Prefix new_prefix, Prefix index) -> std::string {
   checkIpv6();
   auto subnet = generateSubnet(subnet_v4_, new_prefix, index);
-  return subnet.address().to_string() + "/" + std::to_string(subnet.prefix_length());
+  return fmt::format("{}/{}", subnet.address().to_string(), subnet.prefix_length());
 }
 
 /**
@@ -75,6 +78,13 @@ auto Subnet::generateIp(Prefix index) -> std::string {
   checkIpv6();
   return Subnet::generateIpImpl(subnet_v4_, index).to_string();
 }
+
+auto Subnet::operator==(const Subnet &other) const -> bool {
+  checkIpv6();
+  return subnet_v4_ == other.subnet_v4_;
+}
+
+auto Subnet::operator!=(const Subnet &other) const -> bool { return !(*this == other); }
 
 /**
  * @brief 获取当前子网最大主机数，出错抛出 ohno::except::Exception
@@ -104,7 +114,7 @@ auto Subnet::getMaxSubnetsFromCidr(Prefix new_prefix) const -> Prefix {
  *
  */
 auto Subnet::checkIpv6() const -> void {
-  if (ipv6_) {
+  if (ipversion_ == IpVersion::IPv6) {
     throw OHNO_EXCEPT("IPv6 not supported yet", false);
   }
 }
@@ -158,6 +168,10 @@ auto Subnet::generateSubnet(const boost::asio::ip::network_v4 &base_net, Prefix 
  */
 auto Subnet::generateIpImpl(const boost::asio::ip::network_v4 &base_net, Prefix index)
     -> boost::asio::ip::address_v4 {
+  if (index < 1) {
+    throw OHNO_EXCEPT("Index out of range", false);
+  }
+
   auto prefix = base_net.prefix_length();
   auto base_ip = base_net.address();
 
@@ -169,5 +183,5 @@ auto Subnet::generateIpImpl(const boost::asio::ip::network_v4 &base_net, Prefix 
   return boost::asio::ip::address_v4(base_ip.to_uint() + index);
 }
 
-} // namespace ipam
+} // namespace net
 } // namespace ohno

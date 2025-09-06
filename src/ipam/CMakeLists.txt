@@ -3,3 +3,7 @@ add_library(ohno_ipam
   STATIC
   ${sources}
 )
+target_link_libraries(ohno_ipam
+  PRIVATE
+  ohno_helper
+)

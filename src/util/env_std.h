@@ -9,7 +9,7 @@
 namespace ohno {
 namespace util {
 
-class EnvStd final : public EnvIf, public log::Loggable<log::Id::env> {
+class EnvStd final : public EnvIf, public log::Loggable<log::Id::util> {
 public:
   auto get(std::string_view env) const noexcept -> std::string override;
   auto exist(std::string_view env) const noexcept -> bool override;

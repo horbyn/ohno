@@ -1,9 +1,9 @@
 // clang-format off
 #include "gtest/gtest.h"
-#include "src/ipam/subnet.h"
+#include "src/net/subnet.h"
 // clang-format on
 
-using namespace ohno::ipam;
+using namespace ohno::net;
 
 // 测试 IPv4 CIDR 初始化
 TEST(SubnetTest, Init) {

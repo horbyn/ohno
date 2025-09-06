@@ -2,15 +2,23 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "src/ipam/etcd_client_shell.h"
+#include "src/util/env_std.h"
 // clang-format on
 
 using namespace ohno::util;
 using namespace ohno::ipam;
 
+/*
+ * TODO:
+ * 实际上自己模拟 shell 命令输出来测试是发现不了问题的
+ * 但是如果单元测试必须调用真实 shell 命令才能进行，那在 CICD 环境中就要考虑部署问题就更麻烦了
+ * 这里我也不知道应该怎么模拟，暂时这样做了
+ */
 class MockShellSync : public ShellIf {
 public:
+  MOCK_METHOD(bool, execute, (std::string_view command, std::string &output), (override));
   MOCK_METHOD(int, execute, (std::string_view command, std::string &output, std::string &error),
-              (override, noexcept));
+              (override));
 };
 
 class EtcdClientShellTest : public ::testing::Test {
@@ -18,7 +26,9 @@ protected:
   void SetUp() override {
     auto mock_shell = std::make_unique<MockShellSync>();
     mock_shell_ = mock_shell.get();
-    etcd_client_ = std::make_unique<EtcdClientShell>(EtcdData{}, std::move(mock_shell));
+    auto env = std::make_unique<EnvStd>();
+    etcd_client_ =
+        std::make_unique<EtcdClientShell>(EtcdData{}, std::move(mock_shell), std::move(env));
   }
 
   void TearDown() override {}
@@ -29,10 +39,9 @@ protected:
 };
 
 TEST_F(EtcdClientShellTest, PutOperation) {
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>(""), // 设置输出为空
-                               testing::SetArgReferee<2>(""), // 设置错误为空
-                               testing::Return(0)             // 返回成功
+                               testing::Return(true)          // 返回成功
                                ));
 
   bool result = etcd_client_->put("test-key", "test-value");
@@ -40,18 +49,15 @@ TEST_F(EtcdClientShellTest, PutOperation) {
 }
 
 TEST_F(EtcdClientShellTest, AppendOperation) {
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("test-value"), // 设置输出
-                               testing::SetArgReferee<2>(""),           // 设置错误为空
-                               testing::Return(0)                       // 返回成功
+                               testing::Return(true)                    // 返回成功
                                ))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>(""), // 设置输出为空
-                               testing::SetArgReferee<2>(""), // 设置错误为空
-                               testing::Return(0)             // 返回成功
+                               testing::Return(true)          // 返回成功
                                ))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("test-value,test-append"), // 设置输出
-                               testing::SetArgReferee<2>(""),                       // 设置错误为空
-                               testing::Return(0)                                   // 返回成功
+                               testing::Return(true)                                // 返回成功
                                ));
 
   bool result = etcd_client_->append("test-key", "test-append");
@@ -65,10 +71,9 @@ TEST_F(EtcdClientShellTest, AppendOperation) {
 
 TEST_F(EtcdClientShellTest, GetOperation) {
   std::string value{};
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("test-value"), // 设置输出
-                               testing::SetArgReferee<2>(""),           // 设置错误为空
-                               testing::Return(0)                       // 返回成功
+                               testing::Return(true)                    // 返回成功
                                ));
 
   bool result = etcd_client_->get("test-key", value);
@@ -77,10 +82,9 @@ TEST_F(EtcdClientShellTest, GetOperation) {
 }
 
 TEST_F(EtcdClientShellTest, DelOperation1) {
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>(""), // 设置输出为空
-                               testing::SetArgReferee<2>(""), // 设置错误为空
-                               testing::Return(0)             // 返回成功
+                               testing::Return(true)          // 返回成功
                                ));
 
   bool result = etcd_client_->del("test-key");
@@ -88,18 +92,15 @@ TEST_F(EtcdClientShellTest, DelOperation1) {
 }
 
 TEST_F(EtcdClientShellTest, DelOperation2) {
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("test-value,test-append"), // 设置输出
-                               testing::SetArgReferee<2>(""),                       // 设置错误为空
-                               testing::Return(0)                                   // 返回成功
+                               testing::Return(true)                                // 返回成功
                                ))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>(""), // 设置输出为空
-                               testing::SetArgReferee<2>(""), // 设置错误为空
-                               testing::Return(0)             // 返回成功
+                               testing::Return(true)          // 返回成功
                                ))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("test-append"), // 设置输出
-                               testing::SetArgReferee<2>(""),            // 设置错误为空
-                               testing::Return(0)                        // 返回成功
+                               testing::Return(true)                     // 返回成功
                                ));
 
   bool result = etcd_client_->del("test-key", "test-value");
@@ -113,10 +114,9 @@ TEST_F(EtcdClientShellTest, DelOperation2) {
 
 TEST_F(EtcdClientShellTest, ListOperation) {
   std::vector<std::string> results;
-  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_, testing::_))
+  EXPECT_CALL(*mock_shell_, execute(testing::_, testing::_))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("value1,value2,value3"), // 设置输出
-                               testing::SetArgReferee<2>(""),                     // 设置错误为空
-                               testing::Return(0)                                 // 返回成功
+                               testing::Return(true)                              // 返回成功
                                ));
 
   bool result = etcd_client_->list("test-key", results);

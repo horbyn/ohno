@@ -1,4 +1,7 @@
+add_subdirectory(cni)
 add_subdirectory(common)
+add_subdirectory(helper)
 add_subdirectory(ipam)
 add_subdirectory(log)
+add_subdirectory(net)
 add_subdirectory(util)

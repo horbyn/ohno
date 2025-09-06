@@ -36,7 +36,7 @@ protected:
 TEST_F(IpamTest, AllocateSubnet) {
   std::string subnet{};
 
-  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::_))
+  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::Matcher<std::string &>(testing::_)))
       .WillOnce(testing::Return(false)); // 第一次获取子网返回不存在
   EXPECT_CALL(*mock_etcd_client_, list(testing::_, testing::_))
       .WillRepeatedly(testing::DoAll(testing::SetArgReferee<1>(std::vector<std::string>{}),
@@ -45,18 +45,6 @@ TEST_F(IpamTest, AllocateSubnet) {
       .WillOnce(testing::Return(true)); // 追加操作成功
 
   bool result = ipam_->allocateSubnet("test-node", "192.168.1.0/24", 26, subnet);
-  EXPECT_TRUE(result);
-  EXPECT_STREQ(subnet.c_str(), "192.168.1.0/26");
-}
-
-TEST_F(IpamTest, GetSubnet) {
-  std::string subnet{};
-
-  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::_))
-      .WillOnce(testing::DoAll(testing::SetArgReferee<1>("192.168.1.0/26"),
-                               testing::Return(true))); // 返回一个子网
-
-  bool result = ipam_->getSubnet("test-node", subnet);
   EXPECT_TRUE(result);
   EXPECT_STREQ(subnet.c_str(), "192.168.1.0/26");
 }
@@ -75,7 +63,7 @@ TEST_F(IpamTest, ReleaseSubnet) {
 TEST_F(IpamTest, AllocateIP) {
   std::string ip{};
 
-  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::_))
+  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::Matcher<std::string &>(testing::_)))
       .WillOnce(testing::DoAll(testing::SetArgReferee<1>("192.168.1.0/26"),
                                testing::Return(true))); // 返回一个子网
   EXPECT_CALL(*mock_etcd_client_, list(testing::_, testing::_))
@@ -87,19 +75,6 @@ TEST_F(IpamTest, AllocateIP) {
   bool result = ipam_->allocateIp("test-node", ip);
   EXPECT_TRUE(result);
   EXPECT_STREQ(ip.c_str(), "192.168.1.1");
-}
-
-TEST_F(IpamTest, GetAllIp) {
-  std::vector<std::string> all_ip{};
-
-  EXPECT_CALL(*mock_etcd_client_, list(testing::_, testing::_))
-      .WillOnce(testing::DoAll(
-          testing::SetArgReferee<1>(std::vector<std::string>{"192.168.1.1", "192.168.1.2"}),
-          testing::Return(true))); // 返回一个子网
-
-  bool result = ipam_->getAllIp("test-node", all_ip);
-  EXPECT_TRUE(result);
-  EXPECT_THAT(all_ip, testing::ElementsAre("192.168.1.1", "192.168.1.2"));
 }
 
 TEST_F(IpamTest, ReleaseIp) {

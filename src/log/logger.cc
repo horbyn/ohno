@@ -60,7 +60,7 @@ auto LogConfig::setLogFile(std::string_view file) -> void {
   fs::path log_path =
       file.empty() ? fs::path{std::string{log::LOGFILE_DEFAULT}} : fs::path{std::string{file}};
   if (fs::is_directory(log_path)) {
-    log_path /= std::string{LOGNAME_DEFAULT} + ".log";
+    log_path /= fmt::format("{}.log", LOGNAME_DEFAULT);
   }
 
   file_ = log_path.string();

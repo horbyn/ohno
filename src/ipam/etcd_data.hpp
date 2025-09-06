@@ -2,6 +2,7 @@
 
 // clang-format off
 #include <string>
+#include <string_view>
 #include "src/log/logger.h"
 #include "src/util/env_std.h"
 // clang-format on
@@ -40,6 +41,9 @@ public:
         "\"{}\"",
         endpoints_, ca_cert_, cert_, key_);
   }
+  explicit EtcdData(std::string_view endpoints, std::string_view ca_cert, std::string_view cert,
+                    std::string_view key)
+      : endpoints_{endpoints}, ca_cert_{ca_cert}, cert_{cert}, key_{key} {}
 
   std::string endpoints_;
   std::string ca_cert_;

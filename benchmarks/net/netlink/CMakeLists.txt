@@ -1,0 +1,1 @@
+ohno_benchmark_test(netlink_ip_cmd_bm)

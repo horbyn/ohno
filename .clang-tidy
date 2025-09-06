@@ -16,3 +16,6 @@ CheckOptions:
     value: 'CamelCase'
   - key:   readability-identifier-naming.EnumCase
     value: 'CamelCase'
+  # 计算函数复杂度时忽略宏的展开
+  - key: readability-function-cognitive-complexity.IgnoreMacros
+    value: true

@@ -4,22 +4,6 @@ if(NOT GCOVR_EXE)
   message(FATAL_ERROR "找不到 gcovr 工具")
 endif()
 
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.16.0
-  SOURCE_DIR   "${OHNO_DEPS_DIR}/googletest_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/googletest_build"
-  SUBBUILD_DIR "${OHNO_DEPS_DIR}/googletest_subbuild"
-)
-FetchContent_MakeAvailable(googletest)
-message(STATUS "googletest 头文件目录: ${googletest_SOURCE_DIR}/googletest/include")
-message(STATUS "googlemock 头文件目录: ${googletest_SOURCE_DIR}/googlemock/include")
-include_directories(
-  ${googletest_SOURCE_DIR}/googletest/include
-  ${googletest_SOURCE_DIR}/googlemock/include
-)
-
 add_custom_target(testclean
   COMMAND ${CMAKE_COMMAND} -E rm -f
     ${CMAKE_BINARY_DIR}/**/*.gcda
@@ -28,13 +12,20 @@ add_custom_target(testclean
 
 # 单元测试可执行程序需要以 "_test" 结尾
 file(GLOB DIR RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} */)
-foreach(subdir ${DIR})
-  if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${subdir})
-    file(GLOB TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${subdir}/*_test.cc)
+foreach(sub ${DIR})
+  if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${sub})
+    file(GLOB TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${sub}/*_test.cc)
     foreach(test_src ${TEST_SRC})
       get_filename_component(test_src ${test_src} NAME_WE)
       list(APPEND TEST_EXE "${test_src}")
     endforeach()
+  else()
+    get_filename_component(test_src ${CMAKE_CURRENT_SOURCE_DIR}/${sub} NAME_WE)
+    if("${test_src}" STREQUAL "etcdctl_test" AND NOT ENABLE_ETCDCTL_TEST)
+    elseif("${test_src}" STREQUAL "CMakeLists")
+    else()
+      list(APPEND TEST_EXE "${test_src}")
+    endif()
   endif()
 endforeach()
 message(STATUS "单元测试项目: ${TEST_EXE}")
@@ -69,4 +60,8 @@ macro(ohno_unit_test target_name)
 endmacro()
 
 add_subdirectory(ipam)
+add_subdirectory(net)
 add_subdirectory(util)
+if(ENABLE_ETCDCTL_TEST)
+  ohno_unit_test(etcdctl_test)
+endif()

@@ -22,13 +22,7 @@ TEST(ShellSynTest, CommonTest) {
     EXPECT_FALSE(error.empty());
   }
 
-  // condition 2: 空命令
-  {
-    std::string empty{""}, output{}, error{};
-    EXPECT_EQ(ss.execute(empty, output, error), -1);
-  }
-
-  // condition 3: 非法命令
+  // condition 2: 非法命令
   {
     std::string invalid{"invalid"}, output{}, error{};
     EXPECT_TRUE(ss.execute(invalid, output, error) == -1);

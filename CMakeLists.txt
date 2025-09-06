@@ -6,11 +6,12 @@ project("ohno"
 message(STATUS "[版本]: ${PROJECT_NAME}_v${PROJECT_VERSION}")
 
 # 选项
-option(OHNO_STATIC_ANALYSIS "Enable static analysis" ON)
-option(OHNO_MEMCHECK "Enable memory check" ON)
-option(OHNO_TEST "Enable unit test" ON)
-option(OHNO_BENCHMARK "Enable benchmark" ON)
-option(OHNO_FLAMEGRAPH "Enable flamegraph" ON)
+option(OHNO_STATIC_ANALYSIS "启用代码静态检查" ON)
+option(OHNO_MEMCHECK "启用内存检查" ON)
+option(OHNO_TEST "启用单元测试" ON)
+option(OHNO_BENCHMARK "启用 benchmark 单元测试" ON)
+option(OHNO_FLAMEGRAPH "启用火焰图生成" ON)
+option(ENABLE_ETCDCTL_TEST "启用对 etcdctl 的测试" OFF) # 该选项需要存在 ETCD 集群
 
 # 设置全局变量
 set(OHNO_EXPORT_TEST_TARGET run_coverage)
@@ -55,16 +56,20 @@ message(STATUS "spdlog 头文件目录: ${spdlog_SOURCE_DIR}/include")
 include_directories(${spdlog_SOURCE_DIR}/include)
 
 FetchContent_Declare(
-  cli11
-  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-  GIT_TAG v2.5.0
-  SOURCE_DIR   "${OHNO_DEPS_DIR}/cli11_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/cli11_build"
-  SUBBUILD_DIR "${OHNO_DEPS_DIR}/cli11_subbuild"
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.16.0
+  SOURCE_DIR   "${OHNO_DEPS_DIR}/googletest_src"
+  BINARY_DIR   "${OHNO_DEPS_DIR}/googletest_build"
+  SUBBUILD_DIR "${OHNO_DEPS_DIR}/googletest_subbuild"
 )
-FetchContent_MakeAvailable(cli11)
-message(STATUS "cli11 头文件目录: ${cli11_SOURCE_DIR}/include")
-include_directories(${cli11_SOURCE_DIR}/include)
+FetchContent_MakeAvailable(googletest)
+message(STATUS "googletest 头文件目录: ${googletest_SOURCE_DIR}/googletest/include")
+message(STATUS "googlemock 头文件目录: ${googletest_SOURCE_DIR}/googlemock/include")
+include_directories(
+  ${googletest_SOURCE_DIR}/googletest/include
+  ${googletest_SOURCE_DIR}/googlemock/include
+)
 
 FetchContent_Declare(
   magic_enum
@@ -84,6 +89,18 @@ if (Boost_FOUND)
 else()
   message(FATAL_ERROR "Boost not found")
 endif()
+
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.12.0
+  SOURCE_DIR   "${OHNO_DEPS_DIR}/nlohmann_json_src"
+  BINARY_DIR   "${OHNO_DEPS_DIR}/nlohmann_json_build"
+  SUBBUILD_DIR "${OHNO_DEPS_DIR}/nlohmann_json_subbuild"
+)
+FetchContent_MakeAvailable(nlohmann_json)
+message(STATUS "nlohmann_json 头文件目录: ${nlohmann_json_SOURCE_DIR}/include")
+include_directories(${nlohmann_json_SOURCE_DIR}/include)
 
 # 引入头文件
 include_directories(
@@ -123,9 +140,12 @@ add_subdirectory(src)
 # 接口库
 add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
+  ohno_cni
   ohno_common
+  ohno_helper
   ohno_ipam
   ohno_log
+  ohno_net
   ohno_util
 )
 add_library(${PROJECT_NAME}::core ALIAS ${PROJECT_NAME}_core)

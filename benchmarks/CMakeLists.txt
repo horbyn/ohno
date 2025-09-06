@@ -12,12 +12,21 @@ FetchContent_MakeAvailable(benchmark)
 message(STATUS "benchmack 头文件目录: ${benchmark_SOURCE_DIR}/include")
 include_directories(${benchmark_SOURCE_DIR}/include)
 
-# 基准测试可执行程序需要以 "_benchmark" 结尾
+# 基准测试可执行程序需要以 "_bm" 结尾
 file(GLOB DIR RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} */)
-foreach(subdir ${DIR})
-  if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${subdir})
-    get_filename_component(subdir ${subdir} NAME)
-    list(APPEND BENCHMARK_EXE "${subdir}_benchmark")
+foreach(sub ${DIR})
+  if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${sub})
+    file(GLOB DIR_L2 ${CMAKE_CURRENT_SOURCE_DIR}/${sub}/*)
+    foreach(sub_l2 ${DIR_L2})
+      if(IS_DIRECTORY ${sub_l2})
+        file(GLOB TEST_SRC ${sub_l2}/*_bm.cc)
+
+        foreach(test_src ${TEST_SRC})
+          get_filename_component(test_name ${test_src} NAME_WE)
+          list(APPEND BENCHMARK_EXE "${test_name}")
+        endforeach()
+      endif()
+    endforeach()
   endif()
 endforeach()
 message(STATUS "基准测试项目: ${BENCHMARK_EXE}")
@@ -40,12 +49,14 @@ macro(ohno_benchmark_test target_name)
   target_link_libraries(${target_name}
     PRIVATE
     benchmark::benchmark
+    GTest::gtest_main
+    GTest::gmock_main
     ${PROJECT_NAME}::core
   )
 
   target_compile_options(${target_name}
     PRIVATE
-    -O3           # 启用最大优化
+    -O3     # 启用最大优化
   )
 
   add_test(
@@ -63,3 +74,5 @@ macro(ohno_benchmark_test target_name)
 endmacro()
 
 enable_testing()
+
+add_subdirectory(net)
