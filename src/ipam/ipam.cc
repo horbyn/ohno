@@ -2,9 +2,9 @@
 #include "ipam.h"
 #include "spdlog/fmt/fmt.h"
 #include "src/net/subnet.h"
-#include "etcd_client_shell.h"
 #include "src/common/assert.h"
 #include "src/common/except.h"
+#include "src/etcd/etcd_client_shell.h"
 // clang-format on
 
 namespace ohno {
@@ -17,13 +17,23 @@ namespace ipam {
  * @return true 初始化成功
  * @return false 初始化失败
  */
-auto Ipam::init(std::unique_ptr<EtcdClientIf> etcd_client) -> bool {
+auto Ipam::init(std::unique_ptr<etcd::EtcdClientIf> etcd_client) -> bool {
   etcd_client_ = std::move(etcd_client);
   if (etcd_client_ == nullptr) {
-    OHNO_LOG(error, "ETCD client initialization failed");
+    OHNO_LOG(warn, "ETCD client initialization failed");
     return false;
   }
   return true;
+}
+
+/**
+ * @brief 将 IPAM 信息全部输出出来
+ *
+ * @return std::string IPAM 结果，无结果为空
+ */
+auto Ipam::dump() const -> std::string {
+  OHNO_ASSERT(etcd_client_);
+  return etcd_client_->dump(ETCD_KEY_PREFIX);
 }
 
 /**
@@ -38,6 +48,9 @@ auto Ipam::init(std::unique_ptr<EtcdClientIf> etcd_client) -> bool {
  */
 auto Ipam::allocateSubnet(std::string_view node_name, std::string_view subnet_pool,
                           int subnet_prefix, std::string &subnet) -> bool {
+  OHNO_ASSERT(etcd_client_);
+  OHNO_LOG(trace, "Allocate subnet in:{} with prefix:{} for {}", subnet_pool, subnet_prefix,
+           node_name);
 
   if (getSubnet(node_name, subnet)) {
     return true;
@@ -54,8 +67,12 @@ auto Ipam::allocateSubnet(std::string_view node_name, std::string_view subnet_po
     if (isSubnetAvailable(candidate_subnet)) {
       std::string key = std::string{ETCD_KEY_SUBNET};
       if (etcd_client_->append(key, candidate_subnet)) {
-        subnet = candidate_subnet;
-        return true;
+        if (etcd_client_->put(fmt::format("{}/{}", key, node_name), candidate_subnet)) {
+          OHNO_LOG(trace, "IPAM allocated subnet:{} for {}", candidate_subnet, node_name);
+          subnet = candidate_subnet;
+          return true;
+        }
+        etcd_client_->del(key, candidate_subnet);
       }
     }
   }
@@ -74,22 +91,45 @@ auto Ipam::allocateSubnet(std::string_view node_name, std::string_view subnet_po
  */
 auto Ipam::releaseSubnet(std::string_view node_name, std::string_view subnet) -> bool {
   OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(etcd_client_);
 
   // 删除 /ohno/subnets/节点名称
   std::string key = fmt::format("{}/{}", ETCD_KEY_SUBNET, node_name);
   if (!etcd_client_->del(key)) {
-    OHNO_LOG(error, "Failed to release {}/{}", ETCD_KEY_SUBNET, node_name);
+    OHNO_LOG(warn, "Failed to release {}/{}", ETCD_KEY_SUBNET, node_name);
     return false;
   }
 
   // 删除 /ohno/subnets 出现的子网
   key = std::string{ETCD_KEY_SUBNET};
   if (!etcd_client_->del(key, subnet)) {
-    OHNO_LOG(error, "Failed to release subnet {} in {}", subnet, ETCD_KEY_SUBNET);
+    OHNO_LOG(warn, "Failed to release subnet {} in {}", subnet, ETCD_KEY_SUBNET);
     return false;
   }
 
+  OHNO_LOG(trace, "IPAM release subnet {} for {}", subnet, node_name);
   return true;
+}
+
+/**
+ * @brief 获取 Kubernetes 节点所属子网
+ *
+ * @param node_name Kubernetes 节点名称
+ * @param subnet 子网（返回值）
+ * @return true 获取成功
+ * @return false 获取失败
+ */
+auto Ipam::getSubnet(std::string_view node_name, std::string &subnet) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(etcd_client_);
+
+  bool ret = etcd_client_->get(fmt::format("{}/{}", ETCD_KEY_SUBNET, node_name), subnet);
+  if (!ret) {
+    OHNO_LOG(warn, "Failed to get {}/{}", ETCD_KEY_SUBNET, node_name);
+    return false;
+  }
+
+  return !subnet.empty();
 }
 
 /**
@@ -101,10 +141,11 @@ auto Ipam::releaseSubnet(std::string_view node_name, std::string_view subnet) ->
  * @return false 分配失败
  */
 auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> bool {
+  OHNO_ASSERT(etcd_client_);
 
   std::string subnet{};
   if (!getSubnet(node_name, subnet)) {
-    OHNO_LOG(error, "Failed to allocate ip because get {}/{} failed", ETCD_KEY_SUBNET, node_name);
+    OHNO_LOG(warn, "Failed to allocate ip because get {}/{} failed", ETCD_KEY_SUBNET, node_name);
     return false;
   }
 
@@ -119,6 +160,7 @@ auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> boo
     if (isIpAvailable(node_name, candidate_ip)) {
       std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
       if (etcd_client_->append(key, candidate_ip)) {
+        OHNO_LOG(trace, "IPAM allocate IP {} for {}", candidate_ip, node_name);
         result_ip = candidate_ip;
         return true;
       }
@@ -140,6 +182,7 @@ auto Ipam::allocateIp(std::string_view node_name, std::string &result_ip) -> boo
 auto Ipam::setIp(std::string_view node_name, std::string_view ip_to_set) -> bool {
   OHNO_ASSERT(!node_name.empty());
   OHNO_ASSERT(!ip_to_set.empty());
+  OHNO_ASSERT(etcd_client_);
 
   std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
   std::vector<std::string> ip_list{};
@@ -151,9 +194,11 @@ auto Ipam::setIp(std::string_view node_name, std::string_view ip_to_set) -> bool
   }
 
   if (!etcd_client_->append(key, ip_to_set)) {
-    OHNO_LOG(error, "Failed to set ip {} for node {}", ip_to_set, node_name);
+    OHNO_LOG(warn, "Failed to set ip {} for node {}", ip_to_set, node_name);
     return false;
   }
+
+  OHNO_LOG(trace, "IPAM set IP {} for {}", ip_to_set, node_name);
   return true;
 }
 
@@ -167,36 +212,16 @@ auto Ipam::setIp(std::string_view node_name, std::string_view ip_to_set) -> bool
  */
 auto Ipam::releaseIp(std::string_view node_name, std::string_view ip_to_del) -> bool {
   OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(etcd_client_);
 
   // 删除 /ohno/address/${节点名字} 出现的 IP 地址
   std::string key = fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name);
   if (!etcd_client_->del(key, ip_to_del)) {
-    OHNO_LOG(error, "Failed to release IP {} in {}/{}", ip_to_del, ETCD_KEY_ADDRESS, node_name);
-    return false;
-  }
-  return true;
-}
-
-/**
- * @brief 获取 Kubernetes 节点所属子网，出错返回 ohno::except::Exception
- *
- * @param node_name Kubernetes 节点名称
- * @param subnet 子网（返回值）
- * @return true 获取成功
- * @return false 获取失败
- */
-auto Ipam::getSubnet(std::string_view node_name, std::string &subnet) -> bool {
-  OHNO_ASSERT(!node_name.empty());
-
-  bool ret = etcd_client_->get(fmt::format("{}/{}", ETCD_KEY_SUBNET, node_name), subnet);
-  if (!ret) {
-    OHNO_LOG(error, "Failed to get {}/{}", ETCD_KEY_SUBNET, node_name);
+    OHNO_LOG(warn, "Failed to release IP {} in {}/{}", ip_to_del, ETCD_KEY_ADDRESS, node_name);
     return false;
   }
 
-  // 为 Kubernetes 节点分配的子网，只要分配就一定存在，即使该节点已经没有 Pod 运行
-  OHNO_ASSERT(!subnet.empty());
-  OHNO_LOG(debug, "Get {}/{} subnet: {}", ETCD_KEY_SUBNET, node_name, subnet);
+  OHNO_LOG(trace, "IPAM release IP {} for {}", ip_to_del, node_name);
   return true;
 }
 
@@ -212,16 +237,11 @@ auto Ipam::getAllIp(std::string_view node_name, std::vector<std::string> &all_ip
   OHNO_ASSERT(!node_name.empty());
 
   if (!etcd_client_->list(fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name), all_ip)) {
-    OHNO_LOG(error, "Failed to get {}/{}", ETCD_KEY_ADDRESS, node_name);
+    OHNO_LOG(warn, "Failed to get {}/{}", ETCD_KEY_ADDRESS, node_name);
     return false;
   }
 
-  std::string log_all_ip{};
-  for (const auto &single_ip : all_ip) {
-    log_all_ip += single_ip + " ";
-  }
-  OHNO_LOG(debug, "Get {}/{} all ip: {}", ETCD_KEY_ADDRESS, node_name, log_all_ip);
-  return true;
+  return !all_ip.empty();
 }
 
 /**
@@ -233,6 +253,7 @@ auto Ipam::getAllIp(std::string_view node_name, std::vector<std::string> &all_ip
  */
 auto Ipam::isSubnetAvailable(std::string_view subnet) const -> bool {
   OHNO_ASSERT(!subnet.empty());
+  OHNO_ASSERT(etcd_client_);
 
   std::vector<std::string> all_subnets{};
   auto ret = etcd_client_->list(std::string{ETCD_KEY_SUBNET}, all_subnets);
@@ -254,6 +275,7 @@ auto Ipam::isSubnetAvailable(std::string_view subnet) const -> bool {
 auto Ipam::isIpAvailable(std::string_view node_name, std::string_view ip_to_confirm) const -> bool {
   OHNO_ASSERT(!node_name.empty());
   OHNO_ASSERT(!ip_to_confirm.empty());
+  OHNO_ASSERT(etcd_client_);
 
   std::vector<std::string> all_addresses{};
   auto ret = etcd_client_->list(fmt::format("{}/{}", ETCD_KEY_ADDRESS, node_name), all_addresses);

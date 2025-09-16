@@ -15,8 +15,10 @@ public:
   explicit NetlinkIpCmd(std::unique_ptr<util::ShellIf> shell);
 
   auto linkDestory(std::string_view name, std::string_view netns = {}) -> bool override;
+  auto linkExist(std::string_view name, std::string_view netns = {}) -> bool override;
   auto linkSetStatus(std::string_view name, LinkStatus status, std::string_view netns = {})
       -> bool override;
+  auto linkIsInNetns(std::string_view name, std::string_view netns) -> bool override;
   auto linkToNetns(std::string_view name, std::string_view netns) -> bool override;
   auto linkRename(std::string_view name, std::string_view new_name, std::string_view netns = {})
       -> bool override;
@@ -24,6 +26,8 @@ public:
   auto bridgeCreate(std::string_view name) -> bool override;
   auto bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
                        std::string_view netns = {}) -> bool override;
+  auto addressIsExist(std::string_view name, std::string_view addr, std::string_view netns = {})
+      -> bool override;
   auto addressSetEntry(std::string_view name, std::string_view addr, bool add,
                        std::string_view netns = {}) -> bool override;
   auto routeIsExist(std::string_view dst, std::string_view via, std::string_view dev = {},

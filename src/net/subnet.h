@@ -17,9 +17,8 @@ public:
   auto getPrefix() const -> Prefix override;
   auto generateCidr(Prefix new_prefix, Prefix index) -> std::string override;
   auto generateIp(Prefix index) -> std::string override;
+  auto isSubnetOf(std::string_view cidr) const -> bool override;
 
-  auto operator==(const Subnet &other) const -> bool;
-  auto operator!=(const Subnet &other) const -> bool;
   auto getMaxHosts() const -> Prefix;
   auto getMaxSubnetsFromCidr(Prefix new_prefix) const -> Prefix;
 

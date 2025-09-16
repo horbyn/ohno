@@ -9,6 +9,8 @@ namespace ohno {
 namespace net {
 
 Addr::Addr(std::string_view cidr) {
+  // TODO: 将 Boost 方法调用过程从构造函数中移除出去
+
   try {
     if (cidr.empty()) {
       throw std::invalid_argument("Missing CIDR");
@@ -29,15 +31,17 @@ Addr::Addr(std::string_view cidr) {
       // IPv4 解析
       ipversion_ = IpVersion::IPv4;
       address_v4_ = boost::asio::ip::make_address_v4(addr_str);
-      OHNO_LOG(debug, "cidr {} belongs to IPv4, with IP {}", cidr_str, address_v4_.to_string());
+      OHNO_LOG(trace, "Addr ctor cidr {} belongs to IPv4, with IP {}", cidr_str,
+               address_v4_.to_string());
     } else {
       // IPv6 解析
       ipversion_ = IpVersion::IPv6;
       address_v6_ = boost::asio::ip::make_address_v6(addr_str);
-      OHNO_LOG(debug, "cidr {} belongs to IPv6, with IP {}", cidr_str, address_v6_.to_string());
+      OHNO_LOG(trace, "Addr ctor cidr {} belongs to IPv6, with IP {}", cidr_str,
+               address_v6_.to_string());
     }
   } catch (const std::exception &err) {
-    OHNO_LOG(error, "cidr \"{}\" is invalid, {}", cidr, err.what());
+    OHNO_LOG(warn, "cidr \"{}\" is invalid, {}", cidr, err.what());
     ipversion_ = IpVersion::RESERVED;
   }
 }

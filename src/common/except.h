@@ -16,7 +16,7 @@ public:
 
   auto getMsg() const -> std::string;
 
-private:
+protected:
   std::string msg_;
   int err_;
 };
@@ -27,6 +27,8 @@ public:
 };
 
 } // namespace except
+
+// TODO: 省略最后的 is_errno
 
 #define OHNO_EXCEPT(msg, is_errno) (except::Exception((__FILE__), (__LINE__), (msg), (is_errno)))
 

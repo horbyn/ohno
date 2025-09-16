@@ -1,7 +1,7 @@
 // clang-format off
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
-#include "src/ipam/etcd_client_shell.h"
+#include "src/etcd/etcd_client_shell.h"
 #include "src/util/env_std.h"
 #include "src/util/shell_sync.h"
 // clang-format on
@@ -16,8 +16,8 @@ protected:
   void SetUp() override {
     auto shell = std::make_unique<util::ShellSync>();
     auto env = std::make_unique<util::EnvStd>();
-    etcd_client_ = std::make_unique<ipam::EtcdClientShell>(
-        ipam::EtcdData{"https://etcd1:2379,https://etcd2:2379,https://etcd3:2379",
+    etcd_client_ = std::make_unique<etcd::EtcdClientShell>(
+        etcd::EtcdData{"https://etcd1:2379,https://etcd2:2379,https://etcd3:2379",
                        "/etc/etcd/pki/ca.pem", "/etc/etcd/pki/etcd.pem",
                        "/etc/etcd/pki/etcd-key.pem"},
         std::move(shell), std::move(env));
@@ -25,7 +25,7 @@ protected:
 
   void TearDown() override { etcd_client_->del(KEY); }
 
-  std::unique_ptr<ipam::EtcdClientIf> etcd_client_;
+  std::unique_ptr<etcd::EtcdClientIf> etcd_client_;
 };
 
 TEST_F(EtcdClientTest, PutOperation) {

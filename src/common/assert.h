@@ -10,7 +10,8 @@ namespace ohno {
 
 // ohno 假设失效时行为: Release 直接输出 stderr, Debug 立即终止以便 coredump
 #ifdef NDEBUG
-#define OHNO_ACTION() std::cerr << "ohno assertion\n"
+#define OHNO_ACTION()                                                                              \
+  std::cerr << "ohno assertion failed in " << (__FILE__) << ":" << (__LINE__) << "\n"
 #else
 #define OHNO_ACTION() std::abort()
 #endif

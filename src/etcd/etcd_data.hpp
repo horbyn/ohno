@@ -8,7 +8,7 @@
 // clang-format on
 
 namespace ohno {
-namespace ipam {
+namespace etcd {
 
 class EtcdData final {
 public:
@@ -16,7 +16,7 @@ public:
     util::EnvStd env{};
     endpoints_ = env.get("ETCD_ENDPOINTS");
     if (endpoints_.empty()) {
-      endpoints_ = "127.0.0.1:2379";
+      endpoints_ = "https://127.0.0.1:2379";
       OHNO_GLOBAL_LOG(warn, "Env var ETCD_ENDPOINTS is empty, use default: {}", endpoints_);
     }
     ca_cert_ = env.get("ETCD_CACERT");
@@ -31,7 +31,7 @@ public:
     }
     key_ = env.get("ETCD_KEY");
     if (key_.empty()) {
-      key_ = "/etc/kubernetes/pki/etcd/healthcheck-client.crt.key_";
+      key_ = "/etc/kubernetes/pki/etcd/healthcheck-client.key";
       OHNO_GLOBAL_LOG(warn, "Env var ETCD_KEY is empty, use default: {}", key_);
     }
 
@@ -51,5 +51,5 @@ public:
   std::string key_;
 };
 
-} // namespace ipam
+} // namespace etcd
 } // namespace ohno

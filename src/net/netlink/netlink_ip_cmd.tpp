@@ -22,10 +22,11 @@ auto NetlinkIpCmd::executeCommand(std::string_view command, std::string_view err
                                   Args &&...args) -> bool {
   OHNO_ASSERT(!command.empty());
   OHNO_ASSERT(!error_message.empty());
+  OHNO_ASSERT(shell_);
 
   std::string output{}; // 并不关注输出什么内容
   if (!shell_->execute(command, output)) {
-    OHNO_LOG(error, error_message.data(), std::forward<Args>(args)...);
+    OHNO_LOG(warn, error_message.data(), std::forward<Args>(args)...);
     return false;
   }
   return true;

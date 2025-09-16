@@ -1,5 +1,6 @@
 add_subdirectory(cni)
 add_subdirectory(common)
+add_subdirectory(etcd)
 add_subdirectory(helper)
 add_subdirectory(ipam)
 add_subdirectory(log)

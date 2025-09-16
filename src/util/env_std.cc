@@ -55,7 +55,7 @@ auto EnvStd::set(std::string_view env, std::string_view value) const noexcept ->
     std::lock_guard<std::mutex> lock(mtx_);
     if (::setenv(env.data(), // NOLINT(concurrency-mt-unsafe)
                  value.data(), 1) == -1) {
-      OHNO_LOG(error, "Failed to set env var");
+      OHNO_LOG(warn, "Failed to set env var");
       return false;
     }
     return true;
@@ -77,7 +77,7 @@ auto EnvStd::unset(std::string_view env) const noexcept -> bool {
   try {
     std::lock_guard<std::mutex> lock(mtx_);
     if (::unsetenv(env.data()) == -1) { // NOLINT(concurrency-mt-unsafe)
-      OHNO_LOG(error, "Failed to unset env var");
+      OHNO_LOG(warn, "Failed to unset env var");
       return false;
     }
     return true;

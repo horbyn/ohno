@@ -16,13 +16,15 @@ namespace util {
  * @param command shell 命令（如 "ping -c5 10.0.0.1"）
  * @param out 返回值，记录 stdout 的输出，可能为空
  * @return true 执行成功
- * @return false 执行失败
+ * @return false 执行失败（返回值非零）
  */
 auto ShellSync::execute(std::string_view command, std::string &out) -> bool {
   std::string err{};
   int ret = execute(command, out, err);
-  if (ret != 0 && !err.empty()) {
-    OHNO_LOG(error, "\"{}\" done but with stderr: {}", command, err);
+  if (ret != 0) {
+    if (!err.empty()) {
+      OHNO_LOG(warn, "\"{}\" done but with stderr: {}", command, err);
+    }
     return false;
   }
   return true;
@@ -46,7 +48,11 @@ auto ShellSync::execute(std::string_view command, std::string &out, std::string 
     bp::ipstream output{};
     bp::ipstream error{};
 
-    bp::child chi{std::string{command}, bp::std_out > output, bp::std_err > error,
+    bp::child chi{"/bin/sh",
+                  "-c",
+                  std::string{command},
+                  bp::std_out > output,
+                  bp::std_err > error,
                   bp::std_in < bp::null};
     chi.wait();
     exit_code = chi.exit_code();
@@ -54,6 +60,10 @@ auto ShellSync::execute(std::string_view command, std::string &out, std::string 
     std::ostringstream result{};
     result << output.rdbuf();
     out = result.str();
+
+    if (!out.empty() && out.back() == '\n') {
+      out.pop_back();
+    }
 
     if (exit_code != 0) {
       result.clear();
@@ -64,7 +74,7 @@ auto ShellSync::execute(std::string_view command, std::string &out, std::string 
   } catch (const std::system_error &sys_err) {
     exit_code = -1;
     // TODO: shell 命令可能会修改 errno
-    OHNO_LOG(error, "Failed to execute \"{}\": {}", command, sys_err.what());
+    OHNO_LOG(warn, "Failed to execute \"{}\": {}", command, sys_err.what());
   }
   return exit_code;
 }

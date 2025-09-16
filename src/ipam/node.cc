@@ -3,6 +3,7 @@
 #include "macro.h"
 #include "netns.h"
 #include "src/common/assert.h"
+#include "src/common/except.h"
 #include "src/net/addr.h"
 #include "src/net/bridge.h"
 #include "src/net/route.h"
@@ -36,6 +37,8 @@ auto Node::getName() const -> std::string { return name_; }
  * @param netns 网络空间对象
  */
 auto Node::addNetns(std::string_view netns_name, std::shared_ptr<NetnsIf> netns) -> void {
+  OHNO_ASSERT(!netns_name.empty());
+  OHNO_ASSERT(netns);
   netns_.emplace(netns_name, netns);
 }
 
@@ -59,7 +62,6 @@ auto Node::getNetns(std::string_view netns_name) const -> std::shared_ptr<NetnsI
   OHNO_ASSERT(!netns_name.empty());
   auto iter = netns_.find(netns_name.data());
   if (iter == netns_.end()) {
-    OHNO_LOG(error, "cannot find netns {}", netns_name);
     return nullptr;
   }
   return iter->second;
@@ -73,7 +75,10 @@ auto Node::getNetns(std::string_view netns_name) const -> std::shared_ptr<NetnsI
  *
  * @return size_t 网络空间数量
  */
-auto Node::getNetnsSize() const noexcept -> size_t { return netns_.size(); }
+auto Node::getNetnsSize() const noexcept -> size_t {
+  OHNO_ASSERT(!netns_.empty());
+  return netns_.size();
+}
 
 /**
  * @brief 为 Kubernetes 节点分配子网，每个节点只有一个子网
@@ -81,6 +86,7 @@ auto Node::getNetnsSize() const noexcept -> size_t { return netns_.size(); }
  * @param subnet 子网 CIDR
  */
 auto Node::setSubnet(std::string_view subnet) -> void {
+  OHNO_ASSERT(!subnet.empty());
   subnet_ = std::make_unique<net::Subnet>();
   subnet_->init(subnet);
 }
@@ -100,6 +106,7 @@ auto Node::getSubnet() const -> std::string {
  * @param underlay_addr 节点以太网口地址 CIDR
  */
 auto Node::setUnderlayAddr(std::string_view underlay_addr) -> void {
+  OHNO_ASSERT(!underlay_addr.empty());
   underlay_addr_ = std::make_unique<net::Addr>(underlay_addr);
   OHNO_ASSERT(underlay_addr_->ipVersion() != net::IpVersion::RESERVED); // 校验初始化成功
 }
@@ -138,18 +145,27 @@ auto Node::getUnderlayDev() const -> std::string { return underlay_dev_; }
 auto Node::onStaticRouteAdd(const std::vector<std::shared_ptr<NodeIf>> &nodes) -> void {
   auto via_dev = getUnderlayDev(); // 当前节点所有静态路由必定是从自己的 underlay 设备出去的
   auto host = getNetns(HOST);      // 静态路由总是配置到 root namespace
+  OHNO_ASSERT(host);               // 每个 Kubernetes 节点必定拥有一个 root namespace
   auto host_if = host->getNic(via_dev);
+  OHNO_ASSERT(host_if); // root namespace 已必定拥有一个 underlay 网卡
 
   for (const auto &node : nodes) {
+    if (!node) {
+      continue;
+    }
     if (node->getName() == getName()) {
       continue; // 跳过自己
     }
 
     auto node_subnet = node->getSubnet();              // 其他节点的子网
     auto node_underlay_addr = node->getUnderlayAddr(); // 其他节点的 underlay 地址
+    if (node_subnet.empty() || node_underlay_addr.empty()) {
+      throw OHNO_EXCEPT(fmt::format("node {} subnet or underlay addr is empty", node->getName()),
+                        false);
+    }
     if (!host_if->addRoute(
-            std::make_shared<net::Route>(node_subnet, node_underlay_addr, via_dev))) {
-      OHNO_LOG(critical, "Failed to add static route(dest:{}, via:{}, dev{}) to Kubernetes node {}",
+            std::make_unique<net::Route>(node_subnet, node_underlay_addr, via_dev))) {
+      OHNO_LOG(warn, "Failed to add static route(dest:{}, via:{}, dev{}) to Kubernetes node {}",
                node_subnet, node_underlay_addr, via_dev, getName());
     }
   }
@@ -166,15 +182,20 @@ auto Node::onStaticRouteDel(const std::vector<std::shared_ptr<NodeIf>> &nodes,
                             std::string_view network, std::string_view via) -> void {
   auto via_dev = getUnderlayDev(); // 当前节点所有静态路由必定是从自己的 underlay 设备出去的
   auto host = getNetns(HOST);      // 静态路由总是配置到 root namespace
+  OHNO_ASSERT(host);               // 每个 Kubernetes 节点必定拥有一个 root namespace
   auto host_if = host->getNic(via_dev);
+  OHNO_ASSERT(host_if); // root namespace 已必定拥有一个 underlay 网卡
 
   for (const auto &node : nodes) {
+    if (!node) {
+      continue;
+    }
     if (node->getName() == getName()) {
       continue; // 跳过自己
     }
 
     if (!host_if->delRoute(network, via, via_dev)) {
-      OHNO_LOG(critical,
+      OHNO_LOG(warn,
                "Failed to delete static route(dest:{}, via:{}, dev{}) from Kubernetes node {}",
                network, via, via_dev, getName());
     }

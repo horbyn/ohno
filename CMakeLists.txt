@@ -6,11 +6,11 @@ project("ohno"
 message(STATUS "[版本]: ${PROJECT_NAME}_v${PROJECT_VERSION}")
 
 # 选项
-option(OHNO_STATIC_ANALYSIS "启用代码静态检查" ON)
-option(OHNO_MEMCHECK "启用内存检查" ON)
-option(OHNO_TEST "启用单元测试" ON)
-option(OHNO_BENCHMARK "启用 benchmark 单元测试" ON)
-option(OHNO_FLAMEGRAPH "启用火焰图生成" ON)
+option(OHNO_STATIC_ANALYSIS "启用代码静态检查" OFF)
+option(OHNO_MEMCHECK "启用内存检查" OFF)
+option(OHNO_TEST "启用单元测试" OFF)
+option(OHNO_BENCHMARK "启用 benchmark 单元测试" OFF)
+option(OHNO_FLAMEGRAPH "启用火焰图生成" OFF)
 option(ENABLE_ETCDCTL_TEST "启用对 etcdctl 的测试" OFF) # 该选项需要存在 ETCD 集群
 
 # 设置全局变量
@@ -142,6 +142,7 @@ add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
   ohno_cni
   ohno_common
+  ohno_etcd
   ohno_helper
   ohno_ipam
   ohno_log

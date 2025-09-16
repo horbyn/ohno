@@ -1,12 +1,12 @@
 // clang-format off
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
-#include "src/ipam/etcd_client_shell.h"
+#include "src/etcd/etcd_client_shell.h"
 #include "src/util/env_std.h"
 // clang-format on
 
 using namespace ohno::util;
-using namespace ohno::ipam;
+using namespace ohno::etcd;
 
 /*
  * TODO:

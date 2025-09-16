@@ -1,21 +1,27 @@
 // clang-format off
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
-#include "src/ipam/etcd_client_shell.h"
+#include "src/etcd/etcd_client_shell.h"
 #include "src/ipam/ipam.h"
 // clang-format on
 
-using namespace ohno::util;
+using namespace ohno::etcd;
 using namespace ohno::ipam;
+using namespace ohno::util;
 
 class MockEtcdClient : public EtcdClientIf {
 public:
-  MOCK_METHOD(bool, put, (std::string_view key, std::string_view value), (override));
-  MOCK_METHOD(bool, append, (std::string_view key, std::string_view value), (override));
-  MOCK_METHOD(bool, get, (std::string_view key, std::string &value), (override));
-  MOCK_METHOD(bool, del, (std::string_view key), (override));
-  MOCK_METHOD(bool, del, (std::string_view key, std::string_view value), (override));
-  MOCK_METHOD(bool, list, (std::string_view key, std::vector<std::string> &results), (override));
+  MOCK_METHOD(bool, put, (std::string_view key, std::string_view value), (const, override));
+  MOCK_METHOD(bool, append, (std::string_view key, std::string_view value), (const, override));
+  MOCK_METHOD(bool, get, (std::string_view key, std::string &value), (const, override));
+  MOCK_METHOD(bool, get,
+              (std::string_view key, (std::unordered_map<std::string, std::string> & value)),
+              (const, override));
+  MOCK_METHOD(bool, del, (std::string_view key), (const, override));
+  MOCK_METHOD(bool, del, (std::string_view key, std::string_view value), (const, override));
+  MOCK_METHOD(bool, list, (std::string_view key, std::vector<std::string> &results),
+              (const, override));
+  MOCK_METHOD(std::string, dump, (std::string_view key), (const, override));
 };
 
 class IpamTest : public ::testing::Test {

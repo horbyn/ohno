@@ -32,9 +32,8 @@ endforeach()
 message(STATUS "基准测试项目: ${BENCHMARK_EXE}")
 
 add_custom_target(${OHNO_EXPORT_BENCHMARK_TARGET}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/run_benchmark
   COMMAND cd ${CMAKE_BINARY_DIR}/benchmarks
-  COMMAND ctest -L Benchmarks
+  COMMAND ctest -L Benchmarks --verbose
   DEPENDS ${BENCHMARK_EXE}
   COMMENT "运行基准测试"
 )
@@ -62,9 +61,8 @@ macro(ohno_benchmark_test target_name)
   add_test(
     NAME ${target_name}
     COMMAND ${target_name}
-      --benchmark_time_unit=ms
-      --benchmark_format=json
-      --benchmark_out=${CMAKE_BINARY_DIR}/${OHNO_EXPORT_BENCHMARK_TARGET}/${target_name}.json
+      --benchmark_time_unit=ns
+      --benchmark_format=console
   )
 
   set_property(

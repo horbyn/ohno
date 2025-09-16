@@ -32,7 +32,6 @@ public:
                         std::string_view via) -> void override;
 
 private:
-  std::shared_ptr<net::NicIf> bridge_;
   std::string name_;
   std::unordered_map<std::string, std::shared_ptr<NetnsIf>> netns_;
   std::unique_ptr<net::SubnetIf> subnet_;

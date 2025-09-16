@@ -72,6 +72,7 @@ PS D:\DockerCompose\etcd> docker exec etcd1 etcdctl --endpoints="https://etcd1:2
 - `src/ipam/subnet.{h,cc}` 不支持 IPv6 子网计算
 - `src/netlink` 实现 C++ 对 Netlink 编程接口的封装
 - `src/util/env_std.{h,cc}` 使用的环境变量相关操作不是线程安全的
+- `src/cni` 目录下 `cluster`、`node` 对象由于需要向外部暴露 setter，即外部可以修改它们的内部成员，所以 getter 返回值使用了 `std::shared_ptr<T>`，可能会导致滥用
 
 ## 参考
 

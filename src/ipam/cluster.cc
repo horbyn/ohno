@@ -13,6 +13,7 @@ namespace ipam {
  * @param node 节点对象
  */
 auto Cluster::addNode(std::string_view node_name, std::shared_ptr<NodeIf> node) -> void {
+  OHNO_ASSERT(!node_name.empty());
   nodes_.emplace(node_name, node);
 }
 
@@ -36,7 +37,6 @@ auto Cluster::getNode(std::string_view node_name) const -> std::shared_ptr<NodeI
   OHNO_ASSERT(!node_name.empty());
   auto iter = nodes_.find(node_name.data());
   if (iter == nodes_.end()) {
-    OHNO_LOG(error, "cannot find node {}", node_name);
     return nullptr;
   }
   return iter->second;

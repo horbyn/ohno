@@ -5,15 +5,28 @@
 namespace ohno {
 namespace net {
 
-Bridge::Bridge(const std::shared_ptr<NetlinkIf> &netlink) : Nic{netlink} {
+/**
+ * @brief 将 Veth 网卡设置到系统网络配置中
+ *
+ * @param netlink Netlink 对象
+ * @return true 设置成功
+ * @return false 设置失败
+ */
+auto Bridge::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
+  Nic::setup(netlink);
+
   auto name = Nic::getName();
   if (auto ntl = Nic::netlink_.lock()) {
-    if (!ntl->bridgeCreate(name)) {
-      OHNO_LOG(error, "Failed to create bridge {}", name);
+    if (!ntl->linkExist(name)) {
+      if (!ntl->bridgeCreate(name)) {
+        return false;
+      }
     }
-  } else {
-    OHNO_LOG(error, "Failed to get Netlink from Bridge {}", name);
+    return true;
   }
+
+  OHNO_LOG(warn, "Failed to setup Netlink for bridge {}", name);
+  return false;
 }
 
 /**
@@ -49,9 +62,9 @@ auto Bridge::setImpl(std::string_view nic_name, bool master) -> bool {
       return true;
     }
 
-    OHNO_LOG(error, "failed to plug {} into bridge {}", nic_name, bridge_name);
+    OHNO_LOG(warn, "failed to plug {} into bridge {}", nic_name, bridge_name);
   } else {
-    OHNO_LOG(error, "Failed to get Netlink from Bridge of {}", bridge_name);
+    OHNO_LOG(warn, "Failed to get Netlink from Bridge of {}", bridge_name);
   }
   return false;
 }

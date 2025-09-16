@@ -4,7 +4,6 @@
 #include "nic_if.h"
 #include <vector>
 #include "src/log/logger.h"
-#include "src/net/netlink/netlink_if.h"
 // clang-format on
 
 namespace ohno {
@@ -12,27 +11,32 @@ namespace net {
 
 class Nic : public NicIf, public log::Loggable<log::Id::net> {
 public:
-  explicit Nic(const std::shared_ptr<NetlinkIf> &netlink);
-
+  auto setup(std::weak_ptr<NetlinkIf> netlink) -> bool override;
+  auto cleanup() -> void override;
+  auto isExist() const -> bool override;
   auto setName(std::string_view name) -> void override;
   auto getName() const -> std::string override;
   auto rename(std::string_view name) -> bool override;
-  auto addNetns(std::string_view netns) -> void override;
-  auto delNetns() -> void override;
+  auto setNetns(std::string_view netns) -> bool override;
   auto getNetns() const -> std::string override;
   auto setStatus(LinkStatus status) -> bool override;
   auto getStatus() const noexcept -> bool override;
   auto getIndex() const -> uint32_t override;
-  auto addAddr(std::shared_ptr<AddrIf> addr) -> bool override;
+  auto addAddr(std::unique_ptr<AddrIf> addr) -> bool override;
   auto delAddr(std::string_view cidr) -> bool override;
-  auto getAddr(std::string_view cidr = {}) const -> std::shared_ptr<AddrIf> override;
-  auto addRoute(std::shared_ptr<RouteIf> route) -> bool override;
+  auto getAddr(std::string_view cidr = {}) const -> const AddrIf * override;
+  auto addRoute(std::unique_ptr<RouteIf> route) -> bool override;
   auto delRoute(std::string_view dst, std::string_view via, std::string_view dev) -> bool override;
   auto getRoute(std::string_view dst, std::string_view via, std::string_view dev) const
-      -> std::shared_ptr<RouteIf> override;
-  auto cleanup() noexcept -> void override;
+      -> const RouteIf * override;
+
+  enum class Type : uint8_t { SYS, USER };
+  auto getType() const noexcept -> Type;
+
+  static auto simpleNetns(std::string_view netns) -> std::string;
 
 protected:
+  Type type_{Type::USER};
   std::weak_ptr<NetlinkIf> netlink_; // 仅观察，不持有所有权
 
 private:
@@ -43,8 +47,8 @@ private:
 
   // 如果 AddrIf / RouteIf 需要反过来引用 Nic 则改为 weak_ptr
 
-  std::vector<std::shared_ptr<AddrIf>> addrs_;
-  std::vector<std::shared_ptr<RouteIf>> routes_;
+  std::vector<std::unique_ptr<AddrIf>> addrs_;
+  std::vector<std::unique_ptr<RouteIf>> routes_;
 };
 
 } // namespace net

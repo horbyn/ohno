@@ -1,5 +1,6 @@
 .vscode/*
 build/*
+packages/*
 release/*
 Testing/*
 deps/*

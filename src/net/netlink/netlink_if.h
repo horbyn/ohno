@@ -12,8 +12,10 @@ class NetlinkIf {
 public:
   virtual ~NetlinkIf() = default;
   virtual auto linkDestory(std::string_view name, std::string_view netns = {}) -> bool = 0;
+  virtual auto linkExist(std::string_view name, std::string_view netns = {}) -> bool = 0;
   virtual auto linkSetStatus(std::string_view name, LinkStatus status, std::string_view netns = {})
       -> bool = 0;
+  virtual auto linkIsInNetns(std::string_view name, std::string_view netns) -> bool = 0;
   virtual auto linkToNetns(std::string_view name, std::string_view netns) -> bool = 0;
   virtual auto linkRename(std::string_view name, std::string_view new_name,
                           std::string_view netns = {}) -> bool = 0;
@@ -21,6 +23,8 @@ public:
   virtual auto bridgeCreate(std::string_view name) -> bool = 0;
   virtual auto bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
                                std::string_view netns = {}) -> bool = 0;
+  virtual auto addressIsExist(std::string_view name, std::string_view addr,
+                              std::string_view netns = {}) -> bool = 0;
   virtual auto addressSetEntry(std::string_view name, std::string_view addr, bool add,
                                std::string_view netns = {}) -> bool = 0;
   virtual auto routeIsExist(std::string_view dst, std::string_view via, std::string_view dev = {},

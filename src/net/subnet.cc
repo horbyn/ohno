@@ -14,6 +14,8 @@ namespace net {
  * @param cidr CIDR 字符串
  */
 auto Subnet::init(std::string_view cidr) -> void {
+  // TODO: 将 Boost 方法调用过程从构造函数中移除出去
+
   OHNO_ASSERT(!cidr.empty());
 
   const std::regex IPv4_RE(IPv4_REGEX.data());
@@ -24,13 +26,16 @@ auto Subnet::init(std::string_view cidr) -> void {
     // IPv4 解析
     ipversion_ = IpVersion::IPv4;
     subnet_v4_ = boost::asio::ip::make_network_v4(cidr_str);
-    OHNO_LOG(debug, "cidr {} belongs to IPv4, with subnet {}", cidr, subnet_v4_.to_string());
+    OHNO_LOG(trace, "Subnet ctor cidr {} belongs to IPv4, with subnet {}", cidr,
+             subnet_v4_.to_string());
   } else if (std::regex_match(cidr_str, IPv6_RE)) {
     // IPv6 解析
     ipversion_ = IpVersion::IPv6;
     subnet_v6_ = boost::asio::ip::make_network_v6(cidr_str);
-    OHNO_LOG(debug, "cidr {} belongs to IPv6, with subnet {}", cidr, subnet_v6_.to_string());
+    OHNO_LOG(trace, "Subnet ctor cidr {} belongs to IPv6, with subnet {}", cidr,
+             subnet_v6_.to_string());
   } else {
+    ipversion_ = IpVersion::RESERVED;
     throw OHNO_EXCEPT("Invalid CIDR format", false);
   }
 }
@@ -72,19 +77,27 @@ auto Subnet::generateCidr(Prefix new_prefix, Prefix index) -> std::string {
  * @brief 从当前子网中生成一个 IP 地址，出错抛出 ohno::except::Exception
  *
  * @param index 生成 IP 的依据
- * @return std::string 新的 IP 地址
+ * @return std::string 新的 IP 地址（CIDR 格式）
  */
 auto Subnet::generateIp(Prefix index) -> std::string {
   checkIpv6();
-  return Subnet::generateIpImpl(subnet_v4_, index).to_string();
+  return fmt::format("{}/{}", Subnet::generateIpImpl(subnet_v4_, index).to_string(),
+                     subnet_v4_.prefix_length());
 }
 
-auto Subnet::operator==(const Subnet &other) const -> bool {
+/**
+ * @brief 判断当前子网是否是给定 CIDR 子网的子网
+ *
+ * @param cidr 指定一个 CIDR 子网
+ * @return true 是
+ * @return false 不是
+ */
+auto Subnet::isSubnetOf(std::string_view cidr) const -> bool {
+  Subnet other{};
+  other.init(cidr);
   checkIpv6();
-  return subnet_v4_ == other.subnet_v4_;
+  return subnet_v4_.is_subnet_of(other.subnet_v4_);
 }
-
-auto Subnet::operator!=(const Subnet &other) const -> bool { return !(*this == other); }
 
 /**
  * @brief 获取当前子网最大主机数，出错抛出 ohno::except::Exception
@@ -143,8 +156,8 @@ auto Subnet::generateSubnet(const boost::asio::ip::network_v4 &base_net, Prefix 
 
   // 计算可划分子网数量
   const auto SUBNET_COUNT = getMaxSubnetsFromCidr(new_prefix);
-  OHNO_LOG(debug, "the max hosts in cidr {} according new prefix {} is {}", base_net.to_string(),
-           new_prefix, SUBNET_COUNT);
+  OHNO_LOG(trace, "Generate subnet: the max hosts in cidr {} according new prefix {} is {}",
+           base_net.to_string(), new_prefix, SUBNET_COUNT);
 
   // 校验 3: 地址空间
   if (index >= SUBNET_COUNT) {
@@ -154,7 +167,8 @@ auto Subnet::generateSubnet(const boost::asio::ip::network_v4 &base_net, Prefix 
   // 计算子网偏移量
   const uint32_t OFFSET = index << (MAX_PREFIX_IPV4 - new_prefix);
   const boost::asio::ip::address_v4 NEW_ADDR(base_net.address().to_uint() + OFFSET);
-  OHNO_LOG(debug, "new subnet address according index {} is {}", index, NEW_ADDR.to_string());
+  OHNO_LOG(debug, "Generate subnet: new subnet address according index {} is {}", index,
+           NEW_ADDR.to_string());
 
   return {NEW_ADDR, static_cast<uint16_t>(new_prefix)};
 }

@@ -8,7 +8,7 @@
 // clang-format on
 
 namespace ohno {
-namespace ipam {
+namespace etcd {
 
 EtcdClientShell::EtcdClientShell(const EtcdData &etcd_data, std::unique_ptr<util::ShellIf> shell,
                                  std::unique_ptr<util::EnvIf> env)
@@ -38,12 +38,13 @@ EtcdClientShell::~EtcdClientShell() {
  * @return true 设置成功
  * @return false 设置失败
  */
-auto EtcdClientShell::put(std::string_view key, std::string_view value) -> bool {
+auto EtcdClientShell::put(std::string_view key, std::string_view value) const -> bool {
   OHNO_ASSERT(!key.empty());
   OHNO_ASSERT(!value.empty());
+  OHNO_ASSERT(shell_);
 
   std::string out{};
-  return shell_->execute(fmt::format("{} put {} {}", command_prefix_, key, value), out);
+  return shell_->execute(fmt::format("{} put -- {} {}", command_prefix_, key, value), out);
 }
 
 /**
@@ -54,7 +55,7 @@ auto EtcdClientShell::put(std::string_view key, std::string_view value) -> bool 
  * @return true 设置成功
  * @return false 设置失败
  */
-auto EtcdClientShell::append(std::string_view key, std::string_view value) -> bool {
+auto EtcdClientShell::append(std::string_view key, std::string_view value) const -> bool {
   OHNO_ASSERT(!value.empty());
 
   std::string out{};
@@ -75,17 +76,43 @@ auto EtcdClientShell::append(std::string_view key, std::string_view value) -> bo
  * @return true 获取成功
  * @return false 获取失败
  */
-auto EtcdClientShell::get(std::string_view key, std::string &value) -> bool {
+auto EtcdClientShell::get(std::string_view key, std::string &value) const -> bool {
   OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(shell_);
 
   auto ret =
       shell_->execute(fmt::format("{} get {} --print-value-only", command_prefix_, key), value);
   if (ret) {
-    if (value.empty()) {
-      OHNO_LOG(warn, "ETCD key {} has empty value", key);
-    } else {
+    if (!value.empty()) {
       // etcdctl get 输出会包含换行符
       value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
+    }
+  }
+  return ret;
+}
+
+/**
+ * @brief 获取所有 ETCD value
+ *
+ * @param key ETCD key
+ * @param value ETCD value（返回值）
+ * @return true 获取成功
+ * @return false 获取失败
+ */
+auto EtcdClientShell::get(std::string_view key,
+                          std::unordered_map<std::string, std::string> &value) const -> bool {
+  OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(shell_);
+
+  std::string out{};
+  auto ret = shell_->execute(fmt::format("{} get {} --prefix", command_prefix_, key), out);
+  if (ret) {
+    if (!out.empty()) {
+      auto map = helper::split(out, '\n');
+      OHNO_ASSERT(map.size() % 2 == 0);
+      for (size_t i = 0; i < map.size(); i += 2) {
+        value[map[i]] = map[i + 1];
+      }
     }
   }
   return ret;
@@ -98,8 +125,9 @@ auto EtcdClientShell::get(std::string_view key, std::string &value) -> bool {
  * @return true 删除成功
  * @return false 删除失败
  */
-auto EtcdClientShell::del(std::string_view key) -> bool {
+auto EtcdClientShell::del(std::string_view key) const -> bool {
   OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(shell_);
 
   std::string out{};
   return shell_->execute(fmt::format("{} del {}", command_prefix_, key), out);
@@ -114,7 +142,7 @@ auto EtcdClientShell::del(std::string_view key) -> bool {
  * @return true 删除成功
  * @return false 删除失败
  */
-auto EtcdClientShell::del(std::string_view key, std::string_view value) -> bool {
+auto EtcdClientShell::del(std::string_view key, std::string_view value) const -> bool {
   OHNO_ASSERT(!value.empty());
 
   std::vector<std::string> values{};
@@ -129,7 +157,7 @@ auto EtcdClientShell::del(std::string_view key, std::string_view value) -> bool 
       to_put += ",";
     }
   }
-  return put(key, to_put);
+  return to_put.empty() ? del(key) : put(key, to_put);
 }
 
 /**
@@ -140,7 +168,7 @@ auto EtcdClientShell::del(std::string_view key, std::string_view value) -> bool 
  * @return true 获取成功
  * @return false 获取失败
  */
-auto EtcdClientShell::list(std::string_view key, std::vector<std::string> &results) -> bool {
+auto EtcdClientShell::list(std::string_view key, std::vector<std::string> &results) const -> bool {
 
   std::string output{};
   if (!get(key, output)) {
@@ -151,5 +179,28 @@ auto EtcdClientShell::list(std::string_view key, std::vector<std::string> &resul
   return true;
 }
 
-} // namespace ipam
+/**
+ * @brief 将 ETCD 信息全部输出出来
+ *
+ * @param key ETCD key
+ * @return std::string 持久化结果，无结果为空
+ */
+auto EtcdClientShell::dump(std::string_view key) const -> std::string {
+  OHNO_ASSERT(!key.empty());
+
+  std::unordered_map<std::string, std::string> map{};
+  if (get(key, map)) {
+    if (!map.empty()) {
+      std::string result{};
+      for (auto &item : map) {
+        result += fmt::format("{} -> {}\n", item.first, item.second);
+      }
+      return result;
+    }
+  }
+
+  return std::string{};
+}
+
+} // namespace etcd
 } // namespace ohno

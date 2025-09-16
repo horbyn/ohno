@@ -9,8 +9,10 @@ namespace net {
 
 class Veth : public Nic {
 public:
-  explicit Veth(const std::shared_ptr<NetlinkIf> &netlink, std::string_view peer_name);
+  explicit Veth(std::string_view peer_name);
 
+  auto setup(std::weak_ptr<NetlinkIf> netlink) -> bool override;
+  auto setStatus(LinkStatus status) -> bool override;
   auto getPeerName() const -> std::string;
 
 private:
