@@ -53,6 +53,9 @@ protected:
 };
 
 TEST_F(NicTest, AddNetns) {
+  EXPECT_CALL(*mock_shell_, linkIsInNetns(testing::_, testing::_))
+      .WillRepeatedly(testing::Return(true));
+
   std::string netns1{"test"};
   nic_->setNetns(netns1);
   EXPECT_STREQ(nic_->getNetns().c_str(), netns1.c_str());

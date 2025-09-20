@@ -27,9 +27,6 @@ public:
   auto getUnderlayAddr() const -> std::string override;
   auto setUnderlayDev(std::string_view underlay_dev) -> void override;
   auto getUnderlayDev() const -> std::string override;
-  auto onStaticRouteAdd(const std::vector<std::shared_ptr<NodeIf>> &nodes) -> void override;
-  auto onStaticRouteDel(const std::vector<std::shared_ptr<NodeIf>> &nodes, std::string_view network,
-                        std::string_view via) -> void override;
 
 private:
   std::string name_;

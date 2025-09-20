@@ -4,11 +4,14 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_DIR=$(dirname "$SCRIPT_DIR")
+PKG_DIR=release
 
-if [ ! -d "$PROJECT_DIR/scripts" ] || [ ! -d "$PROJECT_DIR/release" ]; then
+if [ ! -d "$PROJECT_DIR/scripts" ] || [ ! -d "$PROJECT_DIR/$PKG_DIR" ]; then
   echo "错误：缺少打包文件" >&2
   exit 1
 fi
+
+trap 'echo "😯 清理临时目录 $tmp_dir"; sudo rm -rf "$tmp_dir"' EXIT
 
 tmp_dir=$(mktemp -d -t ohno_pack_XXXXXX)
 sudo mkdir -p "$tmp_dir/ohno"
@@ -17,18 +20,16 @@ sudo mkdir -p "$tmp_dir/ohno/scripts"
 sudo mkdir -p "$PROJECT_DIR/packages"
 
 # 获取默认 CNI 配置文件
-sudo $PROJECT_DIR/build/ohno --get-conf
+sudo $PROJECT_DIR/$PKG_DIR/ohno --get-conf
 
 # 复制必需文件到临时目录
 sudo mv -v -f ./ohno.json $tmp_dir/ohno/configs/
-sudo cp -v -f "$PROJECT_DIR/build/ohno" "$tmp_dir/ohno"
+sudo cp -v -f "$PROJECT_DIR/$PKG_DIR/ohno" "$tmp_dir/ohno"
 sudo cp -v -f "$PROJECT_DIR/scripts/install.sh" "$tmp_dir/ohno/scripts/"
-sudo cp -v -f "$PROJECT_DIR/scripts/launch.sh" "$tmp_dir/ohno/scripts/"
 sudo cp -v -f "$PROJECT_DIR/scripts/uninstall.sh" "$tmp_dir/ohno/scripts/"
 
 sudo chmod +x $tmp_dir/ohno/scripts/*.sh
 sudo tar -czf "$PROJECT_DIR/packages/ohno.tar.gz" -C "$tmp_dir" .
-sudo rm -rf "$tmp_dir"
 
 echo "✅ 打包完成：$PROJECT_DIR/packages/ohno.tar.gz"
 echo "包含文件："

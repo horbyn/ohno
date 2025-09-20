@@ -49,6 +49,8 @@ TEST_F(IpamTest, AllocateSubnet) {
                                      testing::Return(true))); // 总是返回空子网列表
   EXPECT_CALL(*mock_etcd_client_, append(testing::_, testing::_))
       .WillOnce(testing::Return(true)); // 追加操作成功
+  EXPECT_CALL(*mock_etcd_client_, put(testing::_, testing::_))
+      .WillOnce(testing::Return(true)); // 追加操作成功
 
   bool result = ipam_->allocateSubnet("test-node", "192.168.1.0/24", 26, subnet);
   EXPECT_TRUE(result);
@@ -80,7 +82,7 @@ TEST_F(IpamTest, AllocateIP) {
 
   bool result = ipam_->allocateIp("test-node", ip);
   EXPECT_TRUE(result);
-  EXPECT_STREQ(ip.c_str(), "192.168.1.1");
+  EXPECT_STREQ(ip.c_str(), "192.168.1.1/26");
 }
 
 TEST_F(IpamTest, ReleaseIp) {

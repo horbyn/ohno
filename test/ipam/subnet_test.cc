@@ -46,9 +46,9 @@ TEST(SubnetTest, GenerateIP) {
   Subnet subnet;
   subnet.init("192.168.1.0/24");
 
-  EXPECT_EQ(subnet.generateIp(1), "192.168.1.1");
-  EXPECT_EQ(subnet.generateIp(10), "192.168.1.10");
-  EXPECT_EQ(subnet.generateIp(254), "192.168.1.254");
+  EXPECT_EQ(subnet.generateIp(1), "192.168.1.1/24");
+  EXPECT_EQ(subnet.generateIp(10), "192.168.1.10/24");
+  EXPECT_EQ(subnet.generateIp(254), "192.168.1.254/24");
 }
 
 // 测试获取最大主机数

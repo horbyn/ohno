@@ -13,8 +13,6 @@ public:
   auto addNode(std::string_view node_name, std::shared_ptr<NodeIf> node) -> void override;
   auto delNode(std::string_view node_name) -> void override;
   auto getNode(std::string_view node_name) const -> std::shared_ptr<NodeIf> override;
-  auto NotifyAdd() -> void override;
-  auto NotifyDel(std::string network, std::string via) -> void override;
 
 private:
   std::unordered_map<std::string, std::shared_ptr<NodeIf>> nodes_;

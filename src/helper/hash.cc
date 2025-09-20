@@ -37,7 +37,7 @@ auto getShortHash(std::string_view long_name) -> std::string {
   }
 
   auto hash_val = shortHash(long_name);
-  static const size_t BUFFER_LENGTH = 8;
+  static const size_t BUFFER_LENGTH = 7;
   char hex_buf[BUFFER_LENGTH]{0};
   snprintf(hex_buf, sizeof(hex_buf), "%06x", hash_val); // 6 位十六进制
 

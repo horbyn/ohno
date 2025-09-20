@@ -9,7 +9,8 @@
 namespace ohno {
 namespace cni {
 
-constexpr std::string_view ETCD_KEY_PREFIX{"/ohno/node"};
+constexpr std::string_view ETCD_KEY_PREFIX_NODE{"/ohno/node"};
+constexpr std::string_view ETCD_KEY_PREFIX_CLUSTER{"/ohno/cluster"};
 constexpr char SEPARATOR{'-'};
 
 class Storage : public StorageIf, public log::Loggable<log::Id::cni> {
@@ -19,12 +20,13 @@ public:
   auto addNetns(std::string_view node_name, std::string_view pod_name, std::string_view netns_name)
       -> bool override;
   auto delNetns(std::string_view node_name, std::string_view pod_name) -> bool override;
-  auto getNetns(std::string_view node_name, std::string_view pod_name) -> std::string override;
+  auto getNetns(std::string_view node_name, std::string_view pod_name) const
+      -> std::string override;
   auto addPod(std::string_view node_name, std::string_view netns_name, std::string_view pod_name)
       -> bool override;
   auto delPod(std::string_view node_name, std::string_view netns_name) -> bool override;
   auto getPod(std::string_view node_name, std::string_view netns_name) -> std::string override;
-  auto getAllPods(std::string_view node_name) -> std::vector<std::string> override;
+  auto getAllPods(std::string_view node_name) const -> std::vector<std::string> override;
   auto addNic(std::string_view node_name, std::string_view pod_name, std::string_view nic_name)
       -> bool override;
   auto delNic(std::string_view node_name, std::string_view pod_name, std::string_view nic_name)

@@ -42,35 +42,5 @@ auto Cluster::getNode(std::string_view node_name) const -> std::shared_ptr<NodeI
   return iter->second;
 }
 
-/**
- * @brief 通知事件，需要添加静态路由
- *
- */
-auto Cluster::NotifyAdd() -> void {
-  std::vector<std::shared_ptr<NodeIf>> nodes{};
-  std::transform(nodes_.begin(), nodes_.end(), std::back_inserter(nodes),
-                 [](const auto &pair) { return pair.second; });
-
-  for (const auto &pair : nodes_) {
-    pair.second->onStaticRouteAdd(nodes);
-  }
-}
-
-/**
- * @brief 通知事件，需要删除静态路由
- *
- * @param network 已经删除的网段
- * @param via 通过该网段的网关
- */
-auto Cluster::NotifyDel(std::string network, std::string via) -> void {
-  std::vector<std::shared_ptr<NodeIf>> nodes{};
-  std::transform(nodes_.begin(), nodes_.end(), std::back_inserter(nodes),
-                 [](const auto &pair) { return pair.second; });
-
-  for (const auto &pair : nodes_) {
-    pair.second->onStaticRouteDel(nodes, network, via);
-  }
-}
-
 } // namespace ipam
 } // namespace ohno

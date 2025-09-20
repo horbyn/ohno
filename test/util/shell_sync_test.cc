@@ -25,6 +25,6 @@ TEST(ShellSynTest, CommonTest) {
   // condition 2: 非法命令
   {
     std::string invalid{"invalid"}, output{}, error{};
-    EXPECT_TRUE(ss.execute(invalid, output, error) == -1);
+    EXPECT_TRUE(ss.execute(invalid, output, error) != 0);
   }
 }

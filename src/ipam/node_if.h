@@ -26,12 +26,6 @@ public:
   virtual auto getUnderlayAddr() const -> std::string = 0;
   virtual auto setUnderlayDev(std::string_view underlay_dev) -> void = 0;
   virtual auto getUnderlayDev() const -> std::string = 0;
-
-  // 静态路由实现: cluster 要发布静态路由需要通知所有 node，所以 cluster 与 node 构成
-  // subject-observe 模式。当节点间通信不需要静态路由时，这两个接口可以删除
-  virtual auto onStaticRouteAdd(const std::vector<std::shared_ptr<NodeIf>> &nodes) -> void = 0;
-  virtual auto onStaticRouteDel(const std::vector<std::shared_ptr<NodeIf>> &nodes,
-                                std::string_view network, std::string_view via) -> void = 0;
 };
 
 } // namespace ipam

@@ -1,5 +1,6 @@
 // clang-format off
 #include "cni.h"
+#include <net/if.h>
 #include <iostream>
 #include "cni_result.h"
 #include "cni_error.h"
@@ -155,9 +156,7 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
     throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to get current node info");
   }
   cluster_ = getKubernetesCluster(netlink);
-  if (!cluster_) {
-    throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to get kubernetes cluster");
-  }
+  OHNO_ASSERT(cluster_);
 
   // 获取 Kubernetes 节点
   auto node = getKubernetesNode(true, netlink);
@@ -179,7 +178,6 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
   // pod 一端使用 $CNI_IFNAME 名称，宿主机一端使用 veth_$CNI_CONTAINERID 名称
   auto veth_host = fmt::format("veth_{}", helper::getShortHash(container_id));
   auto veth_pod = nic_name;
-  bool flag_add = true;
   auto gateway = conf_.ipam_.gateway_;
   std::string pod_addr{};
 
@@ -207,7 +205,6 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
       throw OHNO_CNIERR(
           7, fmt::format("Failed to rename veth:{} to veth:{}", nic->getName(), veth_pod));
     }
-    flag_add = false;
   } else {
     // 这个 Pod 第一次创建网卡
     nic = getKubernetesNic(pod, veth_pod, true, netlink, veth_host, netns);
@@ -216,13 +213,6 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
                                        container_id, node_name_));
     }
   }
-
-  // 创建宿主机静态路由
-  if (flag_add && node->getNetnsSize() == 2) {
-    // 算上宿主机的 root namespace，数量为 2 说明节点现在才创建第一个 Pod
-    cluster_->NotifyAdd();
-  }
-
   auto ipam_end = ipam_->dump();
   OHNO_LOG(debug, "\nIPAM start\n{}IPAM end\n{}", ipam_start, ipam_end);
 
@@ -301,7 +291,6 @@ auto Cni::del(std::string_view container_id, std::string_view nic_name) noexcept
       if (!node_subnet.empty() && !ipam_->releaseSubnet(node_name_, node_subnet)) {
         OHNO_LOG(error, "Failed to release node subnet");
       }
-      cluster_->NotifyDel(node_subnet, node_underlay_addr_);
     }
   } catch (const cni::CniError &cni_err) {
     OHNO_LOG(error, "CNI DEL failed: {}", cni_err.getMsg());
@@ -395,6 +384,7 @@ auto Cni::getStorageNic(std::string_view pod, std::string_view nic,
 auto Cni::initKubernetesNode(const std::shared_ptr<ipam::NodeIf> &node,
                              std::string_view node_subnet) -> void {
   OHNO_ASSERT(!node_subnet.empty());
+
   node->setName(node_name_);
   node->setSubnet(node_subnet);
   node->setUnderlayAddr(node_underlay_addr_);
@@ -482,11 +472,9 @@ auto Cni::getBridge(const std::weak_ptr<net::NetlinkIf> &netlink, std::string_vi
                                                          conf_.bridge_, node_name_));
   }
   bridge->setName(conf_.bridge_);
-  if (!bridge->isExist()) {
-    if (!bridge->setup(netlink)) {
-      throw OHNO_CNIERR(
-          7, fmt::format("Failed to create Kubernetes node:{} bridge object", node_name_));
-    }
+  if (!bridge->setup(netlink)) {
+    throw OHNO_CNIERR(7,
+                      fmt::format("Failed to create Kubernetes node:{} bridge object", node_name_));
   }
 
   if (bridge->addAddr(std::make_unique<net::Addr>(bridge_addr))) {
@@ -546,14 +534,7 @@ auto Cni::getKubernetesNode(bool get_and_create, const std::weak_ptr<net::Netlin
   auto node = cluster_->getNode(node_name_);
   if (!node && get_and_create) {
     if (netlink.lock()) {
-      // 还没有 Kubernetes 节点的抽象
       node.reset(new ipam::Node{});
-      if (!node) {
-        throw OHNO_CNIERR(
-            cni::CNI_ERRCODE_OHNO,
-            fmt::format("Failed to create Kubernetes node object on node:{}", node_name_));
-      }
-
       std::string_view gateway = conf_.ipam_.gateway_;
       if (gateway.find('/') == std::string_view::npos) {
         gateway = fmt::format("{}/{}", gateway, conf_.subnet_prefix_);
@@ -605,7 +586,6 @@ auto Cni::getKubernetesNode(bool get_and_create, const std::weak_ptr<net::Netlin
 auto Cni::getKubernetesPod(const std::shared_ptr<ipam::NodeIf> &node, std::string_view pod_name,
                            bool create) -> std::shared_ptr<ipam::NetnsIf> {
   OHNO_ASSERT(node);
-  OHNO_ASSERT(storage_);
   auto pod = node->getNetns(pod_name);
   if (!pod) {
     if (create) {
@@ -640,9 +620,7 @@ auto Cni::delKubernetesPod(const std::shared_ptr<ipam::NodeIf> &node, std::strin
     throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                       fmt::format("Failed to add container id:{}", netns_name));
   }
-  if (pod_name != ipam::HOST) {
-    node->delNetns(pod_name); // root namespace 还需要访问静态路由，不删除
-  }
+  node->delNetns(pod_name);
 }
 
 /**
@@ -742,6 +720,7 @@ auto Cni::getKubernetesNic(const std::shared_ptr<ipam::NetnsIf> &pod, std::strin
   OHNO_ASSERT(pod);
   OHNO_ASSERT(!nic_name.empty());
   OHNO_ASSERT(!node_name_.empty());
+  OHNO_ASSERT(storage_);
 
   auto iface = pod->getNic(nic_name);
   if (!iface && get_and_create) {
@@ -771,7 +750,8 @@ auto Cni::getKubernetesNic(const std::shared_ptr<ipam::NetnsIf> &pod, std::strin
         throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                           fmt::format("Failed to store nic:{} on node:{}", nic_name, node_name_));
       }
-      iface->setName("ohno-temp"); // 创建 Pod 网卡时先使用一个临时网卡名
+      iface->setName(fmt::format("ohno_{}", helper::getShortHash(helper::getUniqueId(
+                                                IFNAMSIZ)))); // 创建 Pod 网卡时先使用一个临时网卡名
       if (!iface->setup(netlink)) {
         throw OHNO_CNIERR(7,
                           fmt::format("Failed to create iface pair {}--{}", nic_name, veth_peer));
@@ -835,10 +815,7 @@ auto Cni::delKubernetesNic(const std::shared_ptr<ipam::NetnsIf> &pod, std::strin
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                         fmt::format("Failed to delete nic:{} on node:{}", nic_name, node_name_));
     }
-    if (auto nic_name = iface->getName();
-        pod->getName() != ipam::HOST && nic_name != node_underlay_dev_) {
-      pod->delNic(nic_name); // root namespace underlay 网卡用来保存静态路由，后面要使用
-    }
+    pod->delNic(nic_name);
   }
 }
 

@@ -6,6 +6,7 @@
 #include "src/net/nic.h"
 #include "src/net/route.h"
 #include "src/helper/string.h"
+#include "src/util/shell_sync.h"
 // clang-format on
 
 namespace ohno {
@@ -34,7 +35,7 @@ auto Storage::init(std::unique_ptr<etcd::EtcdClientIf> etcd_client) -> bool {
  */
 auto Storage::dump() const -> std::string {
   OHNO_ASSERT(etcd_client_);
-  return etcd_client_->dump(ETCD_KEY_PREFIX);
+  return etcd_client_->dump(ETCD_KEY_PREFIX_NODE);
 }
 
 /**
@@ -88,7 +89,7 @@ auto Storage::delNetns(std::string_view node_name, std::string_view pod_name) ->
  * @param pod_name Pod 名称
  * @return std::string 网络空间名称
  */
-auto Storage::getNetns(std::string_view node_name, std::string_view pod_name) -> std::string {
+auto Storage::getNetns(std::string_view node_name, std::string_view pod_name) const -> std::string {
   OHNO_ASSERT(!node_name.empty());
   OHNO_ASSERT(!pod_name.empty());
   OHNO_ASSERT(etcd_client_);
@@ -178,7 +179,7 @@ auto Storage::getPod(std::string_view node_name, std::string_view netns_name) ->
  * @param node_name Kubernetes 节点名称
  * @return std::string 对应节点上所有 Pod 名称
  */
-auto Storage::getAllPods(std::string_view node_name) -> std::vector<std::string> {
+auto Storage::getAllPods(std::string_view node_name) const -> std::vector<std::string> {
   OHNO_ASSERT(!node_name.empty());
   OHNO_ASSERT(etcd_client_);
 
@@ -357,7 +358,7 @@ auto Storage::addRoute(std::string_view node_name, std::string_view pod_name,
   if (etcd_client_->append(key, value)) {
     OHNO_LOG(
         trace,
-        "Storage add Route:{dest:{}, via:{}, dev:{}} for NIC:{} for Pod:{} of Kubernetes node:{}",
+        "Storage add Route:(dest:{}, via:{}, dev:{}) for NIC:{} for Pod:{} of Kubernetes node:{}",
         dest, via, dev, nic_name, pod_name, node_name);
     return true;
   }
@@ -425,7 +426,9 @@ auto Storage::getAllRoutes(std::string_view node_name, std::string_view pod_name
  * @return std::string ETCD key
  */
 auto Storage::getNetnsKey(std::string_view node_name, std::string_view pod_name) -> std::string {
-  return fmt::format("{}/{}/pod/{}/netns", ETCD_KEY_PREFIX, node_name, pod_name);
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!pod_name.empty());
+  return fmt::format("{}/{}/pod/{}/netns", ETCD_KEY_PREFIX_NODE, node_name, pod_name);
 }
 
 /**
@@ -437,7 +440,9 @@ auto Storage::getNetnsKey(std::string_view node_name, std::string_view pod_name)
  */
 auto Storage::getSinglePodKey(std::string_view node_name, std::string_view netns_name)
     -> std::string {
-  return fmt::format("{}/{}/netns/{}/pod", ETCD_KEY_PREFIX, node_name,
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!netns_name.empty());
+  return fmt::format("{}/{}/netns/{}/pod", ETCD_KEY_PREFIX_NODE, node_name,
                      net::Nic::simpleNetns(netns_name));
 }
 
@@ -448,7 +453,8 @@ auto Storage::getSinglePodKey(std::string_view node_name, std::string_view netns
  * @return std::string ETCD key
  */
 auto Storage::getAllPodsKey(std::string_view node_name) -> std::string {
-  return fmt::format("{}/{}/pod", ETCD_KEY_PREFIX, node_name);
+  OHNO_ASSERT(!node_name.empty());
+  return fmt::format("{}/{}/pod", ETCD_KEY_PREFIX_NODE, node_name);
 }
 
 /**
@@ -459,7 +465,9 @@ auto Storage::getAllPodsKey(std::string_view node_name) -> std::string {
  * @return std::string ETCD key
  */
 auto Storage::getNicKey(std::string_view node_name, std::string_view pod_name) -> std::string {
-  return fmt::format("{}/{}/pod/{}/nic", ETCD_KEY_PREFIX, node_name, pod_name);
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!pod_name.empty());
+  return fmt::format("{}/{}/pod/{}/nic", ETCD_KEY_PREFIX_NODE, node_name, pod_name);
 }
 
 /**
@@ -472,7 +480,11 @@ auto Storage::getNicKey(std::string_view node_name, std::string_view pod_name) -
  */
 auto Storage::getAddrKey(std::string_view node_name, std::string_view pod_name,
                          std::string_view nic_name) -> std::string {
-  return fmt::format("{}/{}/pod/{}/nic/{}/addr", ETCD_KEY_PREFIX, node_name, pod_name, nic_name);
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!pod_name.empty());
+  OHNO_ASSERT(!nic_name.empty());
+  return fmt::format("{}/{}/pod/{}/nic/{}/addr", ETCD_KEY_PREFIX_NODE, node_name, pod_name,
+                     nic_name);
 }
 
 /**
@@ -485,7 +497,11 @@ auto Storage::getAddrKey(std::string_view node_name, std::string_view pod_name,
  */
 auto Storage::getRouteKey(std::string_view node_name, std::string_view pod_name,
                           std::string_view nic_name) -> std::string {
-  return fmt::format("{}/{}/pod/{}/nic/{}/route", ETCD_KEY_PREFIX, node_name, pod_name, nic_name);
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!pod_name.empty());
+  OHNO_ASSERT(!nic_name.empty());
+  return fmt::format("{}/{}/pod/{}/nic/{}/route", ETCD_KEY_PREFIX_NODE, node_name, pod_name,
+                     nic_name);
 }
 
 /**

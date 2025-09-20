@@ -75,6 +75,20 @@ RUN apt-get update && apt install -y --no-install-recommends ca-certificates && 
         echo "错误: 未找到可执行的 perf 文件" >&2; \
         exit 1; \
     fi && \
+    # 安装 go
+    cd /home && \
+    wget https://go.dev/dl/go1.24.3.linux-amd64.tar.gz && \
+    tar -C /usr/local -zxf go1.24.3.linux-amd64.tar.gz && \
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.zshrc && \
+    rm -f go1.24.3.linux-amd64.tar.gz && \
+    # 安装 cnitool
+    cd /home && \
+    git clone https://github.com/containernetworking/cni.git && \
+    cd cni && \
+    go mod tidy && \
+    cd cnitool && \
+    GOOS=linux GOARCH=amd64 go build . && \
+    ln -s `pwd`/cnitool /usr/bin && \
     # mac 全局忽略 .DS_Store 配置文件
     # ref to: https://orianna-zzo.github.io/sci-tech/2018-01/mac%E4%B8%ADgit%E5%BF%BD%E7%95%A5.ds_store%E6%96%87%E4%BB%B6/
     echo "# Mac OS specified" > ~/.gitignore_global && \

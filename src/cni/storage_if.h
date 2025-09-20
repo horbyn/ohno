@@ -19,12 +19,13 @@ public:
   virtual auto addNetns(std::string_view node_name, std::string_view pod_name,
                         std::string_view netns_name) -> bool = 0;
   virtual auto delNetns(std::string_view node_name, std::string_view pod_name) -> bool = 0;
-  virtual auto getNetns(std::string_view node_name, std::string_view pod_name) -> std::string = 0;
+  virtual auto getNetns(std::string_view node_name, std::string_view pod_name) const
+      -> std::string = 0;
   virtual auto addPod(std::string_view node_name, std::string_view netns_name,
                       std::string_view pod_name) -> bool = 0;
   virtual auto delPod(std::string_view node_name, std::string_view netns_name) -> bool = 0;
   virtual auto getPod(std::string_view node_name, std::string_view netns_name) -> std::string = 0;
-  virtual auto getAllPods(std::string_view node_name) -> std::vector<std::string> = 0;
+  virtual auto getAllPods(std::string_view node_name) const -> std::vector<std::string> = 0;
   virtual auto addNic(std::string_view node_name, std::string_view pod_name,
                       std::string_view nic_name) -> bool = 0;
   virtual auto delNic(std::string_view node_name, std::string_view pod_name,

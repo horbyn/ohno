@@ -16,11 +16,8 @@ protected:
   void SetUp() override {
     auto shell = std::make_unique<util::ShellSync>();
     auto env = std::make_unique<util::EnvStd>();
-    etcd_client_ = std::make_unique<etcd::EtcdClientShell>(
-        etcd::EtcdData{"https://etcd1:2379,https://etcd2:2379,https://etcd3:2379",
-                       "/etc/etcd/pki/ca.pem", "/etc/etcd/pki/etcd.pem",
-                       "/etc/etcd/pki/etcd-key.pem"},
-        std::move(shell), std::move(env));
+    etcd_client_ =
+        std::make_unique<etcd::EtcdClientShell>(etcd::EtcdData{}, std::move(shell), std::move(env));
   }
 
   void TearDown() override { etcd_client_->del(KEY); }
