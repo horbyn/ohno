@@ -16,9 +16,9 @@ using namespace ohno::etcd;
  */
 class MockShellSync : public ShellIf {
 public:
-  MOCK_METHOD(bool, execute, (std::string_view command, std::string &output), (override));
+  MOCK_METHOD(bool, execute, (std::string_view command, std::string &output), (const, override));
   MOCK_METHOD(int, execute, (std::string_view command, std::string &output, std::string &error),
-              (override));
+              (const, override));
 };
 
 class EtcdClientShellTest : public ::testing::Test {

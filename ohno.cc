@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string_view>
 #include "ohno_version.h"
+#include "src/backend/center.h"
 #include "src/common/except.h"
 #include "src/cni/cni.h"
 #include "src/cni/cni_config.h"
@@ -20,6 +21,7 @@
 // clang-format on
 
 enum class Type : uint8_t { RESERVED, ADD, DEL, VERSION };
+static bool g_del{false}; // DEL 操作不能抛出异常
 
 auto main(int argc, char **argv) -> int {
   using namespace ohno;
@@ -66,6 +68,7 @@ auto main(int argc, char **argv) -> int {
       type = Type::ADD;
     } else if (conf_env.command_ == "DEL") {
       type = Type::DEL;
+      g_del = true;
     } else if (conf_env.command_ == "CHECK") {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_NOT_SUPPORTED, "\"CHECK\" is on the road, bro");
     } else if (conf_env.command_ == "STATUS") {
@@ -79,14 +82,21 @@ auto main(int argc, char **argv) -> int {
     }
 
     // 创建 CNI 插件
+    auto api_server = backend::Center::getApiServer(backend::Center::Type::HOST, env.get());
+    auto center = std::make_unique<backend::Center>(api_server, config.ssl_ ? true : false,
+                                                    backend::Center::Type::HOST);
+    if (!center->test()) {
+      throw OHNO_CNIERR(7, "Kubernetes api server is unhealthy");
+    }
+    auto etcd_server = backend::Center::getEtcdClusters();
     auto ipam = std::make_unique<ipam::Ipam>();
     if (!ipam->init(std::make_unique<etcd::EtcdClientShell>(
-            etcd::EtcdData{}, std::make_unique<util::ShellSync>(), std::move(env)))) {
+            etcd::EtcdData{etcd_server}, std::make_unique<util::ShellSync>(), std::move(env)))) {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                         "Failed to initialize IPAM, please check in ETCD cluster");
     }
     auto storage = std::make_unique<cni::Storage>();
-    if (!storage->init(std::make_unique<etcd::EtcdClientShell>(etcd::EtcdData{},
+    if (!storage->init(std::make_unique<etcd::EtcdClientShell>(etcd::EtcdData{etcd_server},
                                                                std::make_unique<util::ShellSync>(),
                                                                std::make_unique<util::EnvStd>()))) {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
@@ -101,15 +111,23 @@ auto main(int argc, char **argv) -> int {
     if (!cni.setStorage(std::move(storage))) {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to set Storage");
     }
+    if (!cni.setCenter(std::move(center))) {
+      throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to set Center");
+    }
+    std::string output{};
     switch (type) {
     case Type::ADD:
-      std::cout << cni.add(conf_env.container_id_, conf_env.netns_, conf_env.ifname_) << "\n";
+      output = cni.add(conf_env.container_id_, conf_env.netns_, conf_env.ifname_);
+      OHNO_GLOBAL_LOG(info, "CNI ADD result:\n{}", output);
+      std::cout << output << "\n";
       break;
     case Type::DEL:
       cni.del(conf_env.container_id_, conf_env.ifname_);
       break;
     case Type::VERSION:
-      std::cout << cni.version() << "\n";
+      output = cni.version();
+      OHNO_GLOBAL_LOG(info, "CNI VERSION result:\n{}", output);
+      std::cout << output << "\n";
       break;
     default:
       throw OHNO_CNIERR(4, fmt::format("Unknown CNI env var: {}={}", cni::JKEY_CNI_CE_COMMAND,
@@ -122,13 +140,13 @@ auto main(int argc, char **argv) -> int {
     return EXIT_SUCCESS;
   } catch (const ohno::cni::CniError &cni_err) {
     std::cerr << nlohmann::json(cni_err).dump(4) << "\n";
-    return EXIT_FAILURE;
+    return g_del ? EXIT_SUCCESS : EXIT_FAILURE;
   } catch (const ohno::except::Exception &exc) {
     std::cerr << "[error] " << exc.getMsg() << "\n";
-    return EXIT_FAILURE;
+    return g_del ? EXIT_SUCCESS : EXIT_FAILURE;
   } catch (const std::exception &exc) {
     std::cerr << "[error] " << exc.what() << "\n";
-    return EXIT_FAILURE;
+    return g_del ? EXIT_SUCCESS : EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

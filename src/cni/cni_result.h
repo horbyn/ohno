@@ -11,7 +11,6 @@ namespace cni {
 
 constexpr std::string_view JKEY_CNI_CRIPS_ADDRESS{"address"};
 constexpr std::string_view JKEY_CNI_CRIPS_GATEWAY{"gateway"};
-constexpr std::string_view JKEY_CNI_CRIPS_INTERFACE{"interface"};
 constexpr std::string_view JKEY_CNI_CRI_NAME{"name"};
 constexpr std::string_view JKEY_CNI_CRI_SANDBOX{"sandbox"};
 constexpr std::string_view JKEY_CNI_CR_CNIVERSION{"cniVersion"};
@@ -27,7 +26,6 @@ public:
 
   std::string address_;
   std::string gateway_;
-  uint32_t interface_;
 };
 
 class CniResultInterfaces final {

@@ -28,7 +28,7 @@ namespace log {
 using LoggerType = spdlog::logger;
 using LogLevel = spdlog::level::level_enum;
 
-enum class Id : std::uint8_t { ohno, cni, etcd, ipam, net, util, MAXSIZE };
+enum class Id : std::uint8_t { ohno, backend, cni, etcd, hostgw, ipam, net, util, MAXSIZE };
 enum class Level : std::uint8_t { trace, debug, info, warn, error, critical, off, MAXSIZE };
 
 constexpr std::string_view LOGNAME_DEFAULT{"ohno"};
@@ -43,6 +43,7 @@ public:
   virtual auto setLevel(std::string_view level_str) -> void;
   virtual auto getLevel() const noexcept -> Level;
   virtual auto setLogFile(std::string_view file) -> void;
+  virtual auto setStdout(bool set) -> void;
 
 private:
   Level level_{LOGLEVEL_DEFAULT};

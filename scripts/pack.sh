@@ -25,6 +25,7 @@ sudo $PROJECT_DIR/$PKG_DIR/ohno --get-conf
 # 复制必需文件到临时目录
 sudo mv -v -f ./ohno.json $tmp_dir/ohno/configs/
 sudo cp -v -f "$PROJECT_DIR/$PKG_DIR/ohno" "$tmp_dir/ohno"
+sudo cp -v -f "$PROJECT_DIR/$PKG_DIR/src/ohnod/ohnod" "$tmp_dir/ohno"
 sudo cp -v -f "$PROJECT_DIR/scripts/install.sh" "$tmp_dir/ohno/scripts/"
 sudo cp -v -f "$PROJECT_DIR/scripts/uninstall.sh" "$tmp_dir/ohno/scripts/"
 

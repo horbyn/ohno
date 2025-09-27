@@ -19,9 +19,14 @@ if [[ -f "$INSTALL_BIN_DIR/ohno" ]]; then
   sudo rm -v "$INSTALL_BIN_DIR/ohno"
 fi
 
+if [[ -f "$INSTALL_BIN_DIR/ohnod" ]]; then
+  sudo rm -v "$INSTALL_BIN_DIR/ohnod"
+fi
+
 if [[ -f "$INSTALL_CONF_DIR/ohno.json" ]]; then
   sudo rm -v "$INSTALL_CONF_DIR/ohno.json"
 fi
 
 # 输出卸载完成信息
-echo "✅ 卸载完成: $INSTALL_BIN_DIR/ohno 和 $INSTALL_CONF_DIR/ohno.json 已被删除"
+echo "✅ 卸载完成: $INSTALL_BIN_DIR/ohno、$INSTALL_BIN_DIR/ohnod 和 \
+$INSTALL_CONF_DIR/ohno.json 已被删除"

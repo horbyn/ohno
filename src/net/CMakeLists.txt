@@ -1,3 +1,4 @@
+add_subdirectory(http_client)
 add_subdirectory(netlink)
 
 file(GLOB sources "*.cc")

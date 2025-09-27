@@ -31,6 +31,31 @@ EtcdClientShell::~EtcdClientShell() {
 }
 
 /**
+ * @brief 测试 ETCD 集群是否能通信
+ *
+ * @return true 能
+ * @return false 不能
+ */
+auto EtcdClientShell::test() const -> bool {
+  OHNO_ASSERT(!command_prefix_.empty());
+  OHNO_ASSERT(shell_);
+
+  std::string out{};
+  auto ret = shell_->execute(fmt::format("{} -w table endpoint health", command_prefix_), out);
+  if (ret) {
+    OHNO_LOG(info, "ETCD cluster init successfully, addr:{}, ca_cert:{}, cert:{}, key:{}",
+             etcd_data_.endpoints_, etcd_data_.ca_cert_, etcd_data_.cert_, etcd_data_.key_);
+  } else {
+    OHNO_LOG(warn,
+             "ETCD cluster init failed, addr:\"{}\", ca_cert:\"{}\", cert:\"{}\", key:\"{}\", "
+             "please check out env var ETCDCTL_ENDPOINTS, ETCDCTL_CACERT, ETCDCTL_CERT and "
+             "ETCDCTL_KEY separately",
+             etcd_data_.endpoints_, etcd_data_.ca_cert_, etcd_data_.cert_, etcd_data_.key_);
+  }
+  return ret;
+}
+
+/**
  * @brief 设置一个 ETCD key-value
  *
  * @param key ETCD key
@@ -41,6 +66,7 @@ EtcdClientShell::~EtcdClientShell() {
 auto EtcdClientShell::put(std::string_view key, std::string_view value) const -> bool {
   OHNO_ASSERT(!key.empty());
   OHNO_ASSERT(!value.empty());
+  OHNO_ASSERT(!command_prefix_.empty());
   OHNO_ASSERT(shell_);
 
   std::string out{};
@@ -78,6 +104,7 @@ auto EtcdClientShell::append(std::string_view key, std::string_view value) const
  */
 auto EtcdClientShell::get(std::string_view key, std::string &value) const -> bool {
   OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(!command_prefix_.empty());
   OHNO_ASSERT(shell_);
 
   auto ret =
@@ -102,6 +129,7 @@ auto EtcdClientShell::get(std::string_view key, std::string &value) const -> boo
 auto EtcdClientShell::get(std::string_view key,
                           std::unordered_map<std::string, std::string> &value) const -> bool {
   OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(!command_prefix_.empty());
   OHNO_ASSERT(shell_);
 
   std::string out{};
@@ -127,6 +155,7 @@ auto EtcdClientShell::get(std::string_view key,
  */
 auto EtcdClientShell::del(std::string_view key) const -> bool {
   OHNO_ASSERT(!key.empty());
+  OHNO_ASSERT(!command_prefix_.empty());
   OHNO_ASSERT(shell_);
 
   std::string out{};

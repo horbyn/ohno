@@ -13,6 +13,7 @@ namespace etcd {
 class EtcdClientIf {
 public:
   virtual ~EtcdClientIf() = default;
+  virtual auto test() const -> bool = 0;
   virtual auto put(std::string_view key, std::string_view value) const -> bool = 0;
   virtual auto append(std::string_view key, std::string_view value) const -> bool = 0;
   virtual auto get(std::string_view key, std::string &value) const -> bool = 0;

@@ -15,19 +15,17 @@ public:
   auto init(std::string_view cidr) -> void override;
   auto getSubnet() const -> std::string override;
   auto getPrefix() const -> Prefix override;
-  auto generateCidr(Prefix new_prefix, Prefix index) -> std::string override;
   auto generateIp(Prefix index) -> std::string override;
   auto isSubnetOf(std::string_view cidr) const -> bool override;
 
   auto getMaxHosts() const -> Prefix;
-  auto getMaxSubnetsFromCidr(Prefix new_prefix) const -> Prefix;
 
 private:
+  auto getMaxSubnetsFromCidr(Prefix new_prefix) const -> Prefix;
+
   // TODO: IPv6 支持
 
   auto checkIpv6() const -> void;
-  auto generateSubnet(const boost::asio::ip::network_v4 &base_net, Prefix new_prefix,
-                      Prefix index = 0) const -> boost::asio::ip::network_v4;
   static auto generateIpImpl(const boost::asio::ip::network_v4 &base_net, Prefix index)
       -> boost::asio::ip::address_v4;
 

@@ -18,14 +18,16 @@ Addr::Addr(std::string_view cidr) {
 
     const std::regex IPv4_RE(IPv4_REGEX.data());
     std::string cidr_str{cidr};
+    std::string addr_str{};
 
     size_t pos = cidr_str.find('/');
-    if (pos == std::string_view::npos) {
-      throw std::invalid_argument("Missing prefix in CIDR notation");
+    if (pos == std::string::npos) {
+      addr_str = cidr_str;
+      prefix_ = 32;
+    } else {
+      addr_str = cidr_str.substr(0, pos);
+      prefix_ = static_cast<Prefix>(std::stoi(cidr_str.substr(pos + 1)));
     }
-
-    std::string addr_str = cidr_str.substr(0, pos);
-    prefix_ = static_cast<Prefix>(std::stoi(cidr_str.substr(pos + 1)));
 
     if (std::regex_match(cidr_str, IPv4_RE)) {
       // IPv4 解析
@@ -47,13 +49,22 @@ Addr::Addr(std::string_view cidr) {
 }
 
 /**
+ * @brief 获取不带 CIDR 格式的 IP 地址
+ *
+ * @return std::string 字符串
+ */
+auto Addr::getAddr() const -> std::string {
+  checkIpv6();
+  return address_v4_.to_string();
+}
+
+/**
  * @brief 获取 IP 地址 CIDR 格式
  *
  * @return std::string 字符串
  */
-auto Addr::getCidr() const -> std::string {
-  checkIpv6();
-  return fmt::format("{}/{}", address_v4_.to_string(), getPrefix());
+auto Addr::getAddrCidr() const -> std::string {
+  return fmt::format("{}/{}", getAddr(), getPrefix());
 }
 
 /**

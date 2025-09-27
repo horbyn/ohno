@@ -19,7 +19,7 @@ namespace net {
  */
 template <typename... Args>
 auto NetlinkIpCmd::executeCommand(std::string_view command, std::string_view error_message,
-                                  Args &&...args) -> bool {
+                                  Args &&...args) const -> bool {
   OHNO_ASSERT(!command.empty());
   OHNO_ASSERT(!error_message.empty());
   OHNO_ASSERT(shell_);

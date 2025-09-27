@@ -31,9 +31,14 @@ mkdir -p /etc/cni
 mkdir -p $INSTALL_CONF_DIR
 
 TARGET_BIN="$PROJECT_DIR/ohno"
+TARGET_DAEMON="$PROJECT_DIR/ohnod"
 TARGET_CONF="$PROJECT_DIR/configs/ohno.json"
 if [[ ! -f "$TARGET_BIN" ]]; then
   echo "Error: 压缩包损坏, 不存在 ohno CNI 插件"
+  exit 1
+fi
+if [[ ! -f "$TARGET_DAEMON" ]]; then
+  echo "Error: 压缩包损坏, 不存在 ohnod 守护进程"
   exit 1
 fi
 if [[ ! -f "$TARGET_CONF" ]]; then
@@ -42,7 +47,9 @@ if [[ ! -f "$TARGET_CONF" ]]; then
 fi
 
 sudo cp -v "$TARGET_BIN" "$INSTALL_BIN_DIR/"
+sudo cp -v "$TARGET_DAEMON" "$INSTALL_BIN_DIR/"
 sudo cp -v "$TARGET_CONF" "$INSTALL_CONF_DIR/"
 sudo chmod +x "$INSTALL_BIN_DIR/ohno"
 
-echo "✅ 安装 $INSTALL_CONF_DIR/ohno.json、$INSTALL_BIN_DIR/ohno 完成"
+echo "✅ 安装 $INSTALL_CONF_DIR/ohno.json、$INSTALL_BIN_DIR/ohno 和 \
+$INSTALL_BIN_DIR/ohnod 完成"

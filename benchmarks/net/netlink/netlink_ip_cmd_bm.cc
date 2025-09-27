@@ -18,9 +18,9 @@ std::map<std::string, std::tuple<std::string, std::string, int>> command_respons
 
 class MockShell : public ShellIf {
 public:
-  MOCK_METHOD(bool, execute, (std::string_view command, std::string &output), (override));
+  MOCK_METHOD(bool, execute, (std::string_view command, std::string &output), (const, override));
   MOCK_METHOD(int, execute, (std::string_view command, std::string &output, std::string &error),
-              (override));
+              (const, override));
 
   // 默认行为
   void setBehavior() {

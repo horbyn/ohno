@@ -1,5 +1,6 @@
 // clang-format off
 #include "logger.h"
+#include <atomic>
 #include <filesystem>
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/rotating_file_sink.h"
@@ -13,6 +14,7 @@ static std::mutex g_mutex{};
 static std::unordered_map<std::string, std::shared_ptr<log::LoggerType>> g_map{};
 static Level g_level{LOGLEVEL_DEFAULT};
 static std::string g_logfile{LOGFILE_DEFAULT};
+static std::atomic<bool> g_stdout{false};
 
 /**
  * @brief 设置日志等级
@@ -71,6 +73,13 @@ auto LogConfig::setLogFile(std::string_view file) -> void {
 }
 
 /**
+ * @brief 设置标准输出日志
+ *
+ * @param set 日志输出 stdout（true）日志不输出 stdout（false）
+ */
+auto LogConfig::setStdout(bool set) -> void { g_stdout.store(set); }
+
+/**
  * @brief 获取全局的日志对象
  *
  * @param log_name 日志模块名称
@@ -85,8 +94,13 @@ auto Logger::getLogger(std::string_view log_name) -> std::shared_ptr<log::Logger
     constexpr auto MAX_FILES = 5;
     auto file_sink =
         std::make_shared<spdlog::sinks::rotating_file_sink_mt>(g_logfile, MAX_SIZE, MAX_FILES);
-
     std::vector<spdlog::sink_ptr> sinks{file_sink};
+
+    if (g_stdout.load()) {
+      auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+      sinks.emplace_back(stdout_sink);
+    }
+
     auto temp = std::make_shared<spdlog::logger>(log_name2, sinks.begin(), sinks.end());
     temp->set_level(static_cast<spdlog::level::level_enum>(g_level));
     temp->flush_on(static_cast<spdlog::level::level_enum>(g_level));

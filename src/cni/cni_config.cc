@@ -10,13 +10,15 @@ void from_json(const nlohmann::json &json, CniConfigIpam &ipam) {
   if (json.contains(JKEY_CNI_CCI_SUBNET)) {
     ipam.subnet_ = json.at(JKEY_CNI_CCI_SUBNET).get<std::string>();
   }
-  if (json.contains(JKEY_CNI_CCI_GATEWAY)) {
-    ipam.gateway_ = json.at(JKEY_CNI_CCI_GATEWAY).get<std::string>();
+  if (json.contains(JKEY_CNI_CCI_MODE)) {
+    auto mode = stringEnum<CniConfigIpam::Mode>(json.at(JKEY_CNI_CCI_MODE).get<std::string>());
+    ipam.mode_ = mode.has_value() ? mode.value() : CniConfigIpam::Mode::host_gw;
   }
 }
 
 void to_json(nlohmann::json &json, const CniConfigIpam &ipam) {
-  json = nlohmann::json{{JKEY_CNI_CCI_SUBNET, ipam.subnet_}, {JKEY_CNI_CCI_GATEWAY, ipam.gateway_}};
+  json = nlohmann::json{{JKEY_CNI_CCI_SUBNET, ipam.subnet_},
+                        {JKEY_CNI_CCI_MODE, enumName(ipam.mode_)}};
 }
 
 void from_json(const nlohmann::json &json, CniConfig &conf) {
@@ -42,6 +44,9 @@ void from_json(const nlohmann::json &json, CniConfig &conf) {
   if (json.contains(JKEY_CNI_CC_SUBNET_PREFIX)) {
     conf.subnet_prefix_ = json.at(JKEY_CNI_CC_SUBNET_PREFIX).get<int>();
   }
+  if (json.contains(JKEY_CNI_CC_SSL)) {
+    conf.ssl_ = json.at(JKEY_CNI_CC_SSL).get<bool>();
+  }
   if (json.contains(JKEY_CNI_CC_IPAM)) {
     conf.ipam_ = json.at(JKEY_CNI_CC_IPAM).get<CniConfigIpam>();
   }
@@ -55,6 +60,7 @@ void to_json(nlohmann::json &json, const CniConfig &conf) {
                         {JKEY_CNI_CC_LOG, conf.log_},
                         {JKEY_CNI_CC_LOGLEVEL, enumName(conf.loglevel_)},
                         {JKEY_CNI_CC_SUBNET_PREFIX, conf.subnet_prefix_},
+                        {JKEY_CNI_CC_SSL, conf.ssl_},
                         {JKEY_CNI_CC_IPAM, conf.ipam_}};
 }
 

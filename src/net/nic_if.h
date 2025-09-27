@@ -26,7 +26,6 @@ public:
   virtual auto getNetns() const -> std::string = 0;
   virtual auto setStatus(LinkStatus status) -> bool = 0;
   virtual auto getStatus() const noexcept -> bool = 0;
-  virtual auto getIndex() const -> uint32_t = 0;
   virtual auto addAddr(std::unique_ptr<AddrIf> addr) -> bool = 0;
   virtual auto delAddr(std::string_view cidr) -> bool = 0;
   virtual auto getAddr(std::string_view cidr = {}) const -> const AddrIf * = 0;

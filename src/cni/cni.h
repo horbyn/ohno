@@ -5,6 +5,7 @@
 #include "cni_config.h"
 #include "cni_if.h"
 #include "storage_if.h"
+#include "src/backend/center_if.h"
 #include "src/ipam/cluster_if.h"
 #include "src/ipam/ipam_if.h"
 #include "src/log/logger.h"
@@ -26,6 +27,7 @@ public:
   auto setCluster(std::unique_ptr<ipam::ClusterIf> cluster) -> bool;
   auto setIpam(std::unique_ptr<ipam::IpamIf> ipam) -> bool;
   auto setStorage(std::unique_ptr<StorageIf> storage) -> bool;
+  auto setCenter(std::unique_ptr<backend::CenterIf> center) -> bool;
 
   auto add(std::string_view container_id, std::string_view netns, std::string_view nic_name)
       -> std::string override;
@@ -33,7 +35,7 @@ public:
   auto version() const -> std::string override;
 
 private:
-  auto getCurrentNodeInfo() -> bool;
+  auto getCurrentNodeInfo(const util::ShellIf *shell) -> bool;
   auto getStorageNic(std::string_view pod, std::string_view nic,
                      const std::weak_ptr<net::NetlinkIf> &netlink) -> std::shared_ptr<net::NicIf>;
   auto initKubernetesNode(const std::shared_ptr<ipam::NodeIf> &node, std::string_view node_subnet)
@@ -69,6 +71,9 @@ private:
   std::string node_name_;
   std::string node_underlay_dev_;
   std::string node_underlay_addr_;
+  std::unique_ptr<net::AddrIf> gateway_;
+  CniConfigIpam::Mode ipam_mode_;
+  std::unique_ptr<backend::CenterIf> center_;
 };
 
 } // namespace cni

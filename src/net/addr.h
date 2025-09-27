@@ -17,7 +17,8 @@ class Addr : public AddrIf, public log::Loggable<log::Id::net> {
 public:
   explicit Addr(std::string_view cidr);
 
-  auto getCidr() const -> std::string override;
+  auto getAddr() const -> std::string override;
+  auto getAddrCidr() const -> std::string override;
   auto getPrefix() const noexcept -> Prefix override;
   auto ipVersion() -> IpVersion override;
 

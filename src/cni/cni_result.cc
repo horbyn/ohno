@@ -12,15 +12,11 @@ void from_json(const nlohmann::json &json, CniResultIps &ips) {
   if (json.contains(JKEY_CNI_CRIPS_GATEWAY)) {
     ips.gateway_ = json.at(JKEY_CNI_CRIPS_GATEWAY).get<std::string>();
   }
-  if (json.contains(JKEY_CNI_CRIPS_INTERFACE)) {
-    ips.interface_ = json.at(JKEY_CNI_CRIPS_INTERFACE).get<uint32_t>();
-  }
 }
 
 void to_json(nlohmann::json &json, const CniResultIps &ips) {
   json = nlohmann::json{{JKEY_CNI_CRIPS_ADDRESS, ips.address_},
-                        {JKEY_CNI_CRIPS_GATEWAY, ips.gateway_},
-                        {JKEY_CNI_CRIPS_INTERFACE, ips.interface_}};
+                        {JKEY_CNI_CRIPS_GATEWAY, ips.gateway_}};
 }
 
 void from_json(const nlohmann::json &json, CniResultInterfaces &interfance) {

@@ -29,18 +29,6 @@ TEST(SubnetTest, Init) {
   }
 }
 
-// 测试生成子网 CIDR
-TEST(SubnetTest, GenerateCIDR) {
-  Subnet subnet;
-  subnet.init("192.168.1.0/24");
-
-  EXPECT_EQ(subnet.generateCidr(26, 0), "192.168.1.0/26");
-  EXPECT_EQ(subnet.generateCidr(26, 1), "192.168.1.64/26");
-  EXPECT_EQ(subnet.generateCidr(26, 2), "192.168.1.128/26");
-  EXPECT_EQ(subnet.generateCidr(26, 3), "192.168.1.192/26");
-  EXPECT_ANY_THROW(subnet.generateCidr(26, 4));
-}
-
 // 测试生成 IP 地址
 TEST(SubnetTest, GenerateIP) {
   Subnet subnet;
@@ -57,14 +45,4 @@ TEST(SubnetTest, GetMaxHosts) {
   subnet.init("192.168.1.0/24");
 
   EXPECT_EQ(subnet.getMaxHosts(), 256);
-}
-
-// 测试获取最大子网数
-TEST(SubnetTest, GetMaxSubnetsFromCidr) {
-  Subnet subnet;
-  subnet.init("192.168.1.0/24");
-
-  EXPECT_EQ(subnet.getMaxSubnetsFromCidr(26), 4);
-  EXPECT_EQ(subnet.getMaxSubnetsFromCidr(28), 16);
-  EXPECT_ANY_THROW(subnet.getMaxSubnetsFromCidr(22));
 }

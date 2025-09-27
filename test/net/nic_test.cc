@@ -31,11 +31,11 @@ public:
   MOCK_METHOD(bool, routeIsExist,
               (std::string_view dst, std::string_view via, std::string_view dev,
                std::string_view netns),
-              (override));
+              (const, override));
   MOCK_METHOD(bool, routeSetEntry,
               (std::string_view dst, std::string_view via, bool add, std::string_view dev,
                std::string_view netns),
-              (override));
+              (const, override));
 };
 
 class NicTest : public ::testing::Test {

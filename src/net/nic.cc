@@ -1,7 +1,5 @@
 // clang-format off
 #include "nic.h"
-#include <fcntl.h>
-#include <net/if.h>
 #include "spdlog/fmt/fmt.h"
 #include "src/common/assert.h"
 // clang-format on
@@ -34,7 +32,7 @@ auto Nic::cleanup() -> void {
     }
     if (getType() == Type::USER) {
       for (const auto &addr : addrs_) {
-        ntl->addressSetEntry(getName(), addr->getCidr(), false, getNetns());
+        ntl->addressSetEntry(getName(), addr->getAddrCidr(), false, getNetns());
       }
       ntl->linkDestory(getName(), getNetns());
     }
@@ -158,38 +156,6 @@ auto Nic::setStatus(LinkStatus status) -> bool {
 auto Nic::getStatus() const noexcept -> bool { return status_ == LinkStatus::UP; }
 
 /**
- * @brief 获取网络接口的索引
- *
- * @return uint32_t 索引号，获取失败返回 -1
- */
-auto Nic::getIndex() const -> uint32_t {
-
-  if (!netns_.empty()) {
-    // TODO: open() 返回的 fd 应该用 RAII 管理
-    int file_desc = open(fmt::format("{}/{}", PATH_NAMESPACE, netns_).c_str(), O_RDONLY);
-    if (file_desc == -1) {
-      OHNO_LOG(warn, "Failed to open namespace {}", netns_);
-      return -1;
-    }
-
-    if (setns(file_desc, CLONE_NEWNET) == -1) {
-      OHNO_LOG(warn, "Failed to switch to namespace {}", netns_);
-      close(file_desc);
-      return -1;
-    }
-    close(file_desc);
-  }
-
-  auto ifindex = if_nametoindex(getName().data());
-  if (ifindex == 0) {
-    OHNO_LOG(warn, "Interface {} index not found", getName());
-    return -1;
-  }
-
-  return ifindex;
-}
-
-/**
  * @brief 向网络接口增加一个 IP 地址，该地址写入系统配置中
  *
  * @note 不要添加 Kubernetes 节点 underlay 地址，因为网卡对象析构时会将地址从系统中移除，
@@ -202,7 +168,7 @@ auto Nic::getIndex() const -> uint32_t {
 auto Nic::addAddr(std::unique_ptr<AddrIf> addr) -> bool {
   OHNO_ASSERT(addr);
   const auto name = getName();
-  const auto addr_cidr = addr->getCidr();
+  const auto addr_cidr = addr->getAddrCidr();
   const auto netns = getNetns();
 
   if (auto ntl = netlink_.lock()) {
@@ -237,7 +203,7 @@ auto Nic::delAddr(std::string_view cidr) -> bool {
       }
       addrs_.erase(
           std::remove_if(addrs_.begin(), addrs_.end(),
-                         [cidr](const auto &addr) { return addr->getCidr() == cidr.data(); }),
+                         [cidr](const auto &addr) { return addr->getAddrCidr() == cidr.data(); }),
           addrs_.end());
     }
     return true;
@@ -262,7 +228,7 @@ auto Nic::getAddr(std::string_view cidr) const -> const AddrIf * {
   }
 
   auto iter = std::find_if(addrs_.begin(), addrs_.end(),
-                           [cidr](const auto &addr) { return addr->getCidr() == cidr.data(); });
+                           [cidr](const auto &addr) { return addr->getAddrCidr() == cidr.data(); });
 
   if (iter != addrs_.end()) {
     return iter->get();
@@ -308,9 +274,7 @@ auto Nic::addRoute(std::unique_ptr<RouteIf> route) -> bool {
  * @return false 删除失败
  */
 auto Nic::delRoute(std::string_view dst, std::string_view via, std::string_view dev) -> bool {
-  OHNO_ASSERT(!dst.empty());
   OHNO_ASSERT(!via.empty());
-  OHNO_ASSERT(!dev.empty());
 
   if (auto ntl = netlink_.lock()) {
     if (ntl->routeIsExist(dst, via, dev, getNetns())) {
@@ -319,9 +283,9 @@ auto Nic::delRoute(std::string_view dst, std::string_view via, std::string_view 
       }
       routes_.erase(std::remove_if(routes_.begin(), routes_.end(),
                                    [dst, via, dev](const auto &route) {
-                                     return route->getDest() == dst.data() &&
-                                            route->getVia() == via.data() &&
-                                            route->getDev() == dev.data();
+                                     return route->getDest() == std::string{dst} &&
+                                            route->getVia() == std::string{via} &&
+                                            route->getDev() == std::string{dev};
                                    }),
                     routes_.end());
     }

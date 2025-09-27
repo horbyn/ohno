@@ -206,7 +206,7 @@ auto NetlinkIpCmd::addressSetEntry(std::string_view name, std::string_view addr,
  * @return false 路由不存在
  */
 auto NetlinkIpCmd::routeIsExist(std::string_view dst, std::string_view via, std::string_view dev,
-                                std::string_view netns) -> bool {
+                                std::string_view netns) const -> bool {
   OHNO_ASSERT(!via.empty());
   std::string dest = dst.empty() ? "default" : std::string{dst};
   std::string device = dev.empty() ? std::string{} : fmt::format("dev {}", dev);
@@ -232,7 +232,7 @@ auto NetlinkIpCmd::routeIsExist(std::string_view dst, std::string_view via, std:
  * @return false 设置失败
  */
 auto NetlinkIpCmd::routeSetEntry(std::string_view dst, std::string_view via, bool add,
-                                 std::string_view dev, std::string_view netns) -> bool {
+                                 std::string_view dev, std::string_view netns) const -> bool {
   OHNO_ASSERT(!via.empty());
   std::string action = add ? "add" : "del";
   std::string dest = dst.empty() ? "default" : std::string{dst};

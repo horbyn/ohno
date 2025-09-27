@@ -22,6 +22,7 @@ public:
                            std::unique_ptr<util::EnvIf> env);
   ~EtcdClientShell();
 
+  auto test() const -> bool override;
   auto put(std::string_view key, std::string_view value) const -> bool override;
   auto append(std::string_view key, std::string_view value) const -> bool override;
   auto get(std::string_view key, std::string &value) const -> bool override;

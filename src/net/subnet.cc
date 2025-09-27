@@ -61,19 +61,6 @@ auto Subnet::getPrefix() const -> Prefix {
 }
 
 /**
- * @brief 从原始子网中划分 CIDR 子网，出错抛出 ohno::except::Exception
- *
- * @param new_prefix 新的子网前缀
- * @param index 划分子网依据
- * @return std::string 新的 CIDR 子网
- */
-auto Subnet::generateCidr(Prefix new_prefix, Prefix index) -> std::string {
-  checkIpv6();
-  auto subnet = generateSubnet(subnet_v4_, new_prefix, index);
-  return fmt::format("{}/{}", subnet.address().to_string(), subnet.prefix_length());
-}
-
-/**
  * @brief 从当前子网中生成一个 IP 地址，出错抛出 ohno::except::Exception
  *
  * @param index 生成 IP 的依据
@@ -130,47 +117,6 @@ auto Subnet::checkIpv6() const -> void {
   if (ipversion_ == IpVersion::IPv6) {
     throw OHNO_EXCEPT("IPv6 not supported yet", false);
   }
-}
-
-/**
- * @brief 生成子网，出错抛出 ohno::except::Exception
- *
- * @param base_net 基础子网
- * @param new_prefix 新的子网前缀
- * @param index 生成子网的依据
- * @return boost::asio::ip::network_v4 对象
- */
-auto Subnet::generateSubnet(const boost::asio::ip::network_v4 &base_net, Prefix new_prefix,
-                            Prefix index) const -> boost::asio::ip::network_v4 {
-  const auto BASE_PREFIX = base_net.prefix_length();
-
-  // 校验 1: 前缀有效性
-  if (new_prefix > MAX_PREFIX_IPV4) {
-    throw OHNO_EXCEPT("Invalid IPv4 prefix", false);
-  }
-
-  // 校验 2: 前缀大小关系
-  if (new_prefix < BASE_PREFIX) {
-    throw OHNO_EXCEPT("New prefix smaller than base prefix", false);
-  }
-
-  // 计算可划分子网数量
-  const auto SUBNET_COUNT = getMaxSubnetsFromCidr(new_prefix);
-  OHNO_LOG(trace, "Generate subnet: the max hosts in cidr {} according new prefix {} is {}",
-           base_net.to_string(), new_prefix, SUBNET_COUNT);
-
-  // 校验 3: 地址空间
-  if (index >= SUBNET_COUNT) {
-    throw OHNO_EXCEPT("Index out of range", false);
-  }
-
-  // 计算子网偏移量
-  const uint32_t OFFSET = index << (MAX_PREFIX_IPV4 - new_prefix);
-  const boost::asio::ip::address_v4 NEW_ADDR(base_net.address().to_uint() + OFFSET);
-  OHNO_LOG(debug, "Generate subnet: new subnet address according index {} is {}", index,
-           NEW_ADDR.to_string());
-
-  return {NEW_ADDR, static_cast<uint16_t>(new_prefix)};
 }
 
 /**

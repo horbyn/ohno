@@ -11,7 +11,8 @@ namespace net {
 class AddrIf {
 public:
   virtual ~AddrIf() = default;
-  virtual auto getCidr() const -> std::string = 0;
+  virtual auto getAddr() const -> std::string = 0;
+  virtual auto getAddrCidr() const -> std::string = 0;
   virtual auto getPrefix() const noexcept -> Prefix = 0;
   virtual auto ipVersion() -> IpVersion = 0;
 };

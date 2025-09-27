@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ohno
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: etcd-certs
+  namespace: ohno
+type: Opaque
+data:
+  # export CA_CRT=$(cat /etc/kubernetes/pki/etcd/ca.crt | base64)
+  ca.crt: "${CA_CRT}" # 从环境变量传入 /etc/kubernetes/pki/etcd/ca.crt 的 base64 编码
+  # export CLIENT_CRT=$(cat /etc/kubernetes/pki/etcd/healthcheck-client.crt | base64)
+  client.crt: "${CLIENT_CRT}"
+  # export CLIENT_KEY=$(cat /etc/kubernetes/pki/etcd/healthcheck-client.key | base64)
+  client.key: "${CLIENT_KEY}"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ohnod
+  namespace: ohno
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ohnod
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ohnod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ohnod
+subjects:
+- kind: ServiceAccount
+  name: ohnod
+  namespace: ohno
+---
+apiVersion: apps/v1
+kind: DaemonSet # 负责请求 api server 与请求 ETCD 集群
+metadata:
+  name: ohnod
+  namespace: ohno
+  labels:
+    app: ohnod
+spec:
+  selector:
+    matchLabels:
+      app: ohnod
+  template:
+    metadata:
+      labels:
+        app: ohnod
+    spec:
+      serviceAccountName: ohnod
+      hostNetwork: true
+      automountServiceAccountToken: true
+      containers:
+      - name: ohnod
+        image: ohno/ohnod:latest
+        command: ["/app/ohno/ohnod", "--loglevel", "debug"]
+        imagePullPolicy: Never
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        env:
+        - name: ETCDCTL_CACERT
+          value: "/etc/etcd-certs/ca.crt"
+        - name: ETCDCTL_CERT
+          value: "/etc/etcd-certs/client.crt"
+        - name: ETCDCTL_KEY
+          value: "/etc/etcd-certs/client.key"
+        - name: ETCDCTL_API
+          value: "3"
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN # 需要添加静态路由
+        volumeMounts:
+        - name: api-server-access
+          mountPath: /var/run/ohno
+          readOnly: false  # Daemon Set 负责维护 token 并向保存宿主机供 CNI 插件使用
+        - name: cni-config # 获取路由模式
+          mountPath: /etc/cni/net.d/ohno.json
+          readOnly: true
+        - name: kubelet-conf # 获取 master 节点地址
+          mountPath: /etc/kubernetes/kubelet.conf
+          readOnly: true
+        - name: etcd-certs-volume
+          mountPath: /etc/etcd-certs
+          readOnly: true
+      volumes:
+      - name: api-server-access
+        hostPath:
+          path: /var/run/ohno
+          type: DirectoryOrCreate
+      - name: cni-config
+        hostPath:
+          path: /etc/cni/net.d/ohno.json
+          type: File
+      - name: kubelet-conf
+        hostPath:
+          path: /etc/kubernetes/kubelet.conf
+          type: File
+      - name: etcd-certs-volume
+        secret:
+          secretName: etcd-certs
+          defaultMode: 420
+          items:
+          - key: ca.crt
+            path: ca.crt
+          - key: client.crt
+            path: client.crt
+          - key: client.key
+            path: client.key

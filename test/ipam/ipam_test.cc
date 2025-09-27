@@ -11,6 +11,7 @@ using namespace ohno::util;
 
 class MockEtcdClient : public EtcdClientIf {
 public:
+  MOCK_METHOD(bool, test, (), (const, override));
   MOCK_METHOD(bool, put, (std::string_view key, std::string_view value), (const, override));
   MOCK_METHOD(bool, append, (std::string_view key, std::string_view value), (const, override));
   MOCK_METHOD(bool, get, (std::string_view key, std::string &value), (const, override));
@@ -38,24 +39,6 @@ protected:
   std::unique_ptr<Ipam> ipam_;
   MockEtcdClient *mock_etcd_client_;
 };
-
-TEST_F(IpamTest, AllocateSubnet) {
-  std::string subnet{};
-
-  EXPECT_CALL(*mock_etcd_client_, get(testing::_, testing::Matcher<std::string &>(testing::_)))
-      .WillOnce(testing::Return(false)); // 第一次获取子网返回不存在
-  EXPECT_CALL(*mock_etcd_client_, list(testing::_, testing::_))
-      .WillRepeatedly(testing::DoAll(testing::SetArgReferee<1>(std::vector<std::string>{}),
-                                     testing::Return(true))); // 总是返回空子网列表
-  EXPECT_CALL(*mock_etcd_client_, append(testing::_, testing::_))
-      .WillOnce(testing::Return(true)); // 追加操作成功
-  EXPECT_CALL(*mock_etcd_client_, put(testing::_, testing::_))
-      .WillOnce(testing::Return(true)); // 追加操作成功
-
-  bool result = ipam_->allocateSubnet("test-node", "192.168.1.0/24", 26, subnet);
-  EXPECT_TRUE(result);
-  EXPECT_STREQ(subnet.c_str(), "192.168.1.0/26");
-}
 
 TEST_F(IpamTest, ReleaseSubnet) {
   std::string subnet{};

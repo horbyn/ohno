@@ -31,15 +31,15 @@ public:
   auto addressSetEntry(std::string_view name, std::string_view addr, bool add,
                        std::string_view netns = {}) -> bool override;
   auto routeIsExist(std::string_view dst, std::string_view via, std::string_view dev = {},
-                    std::string_view netns = {}) -> bool override;
+                    std::string_view netns = {}) const -> bool override;
   auto routeSetEntry(std::string_view dst, std::string_view via, bool add,
-                     std::string_view dev = {}, std::string_view netns = {}) -> bool override;
+                     std::string_view dev = {}, std::string_view netns = {}) const -> bool override;
 
 private:
   static auto addNetns(std::string_view command, std::string_view netns = {}) -> std::string;
   template <typename... Args>
-  auto executeCommand(std::string_view command, std::string_view error_message, Args &&...args)
-      -> bool;
+  auto executeCommand(std::string_view command, std::string_view error_message,
+                      Args &&...args) const -> bool;
 
   std::unique_ptr<util::ShellIf> shell_;
 };

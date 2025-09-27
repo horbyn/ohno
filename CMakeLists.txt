@@ -6,6 +6,7 @@ project("ohno"
 message(STATUS "[版本]: ${PROJECT_NAME}_v${PROJECT_VERSION}")
 
 # 选项
+option(OHNO_ENABLE_STATIC_LIB "第三方库使用静态链接" ON)
 option(OHNO_STATIC_ANALYSIS "启用代码静态检查" OFF)
 option(OHNO_MEMCHECK "启用内存检查" OFF)
 option(OHNO_TEST "启用单元测试" OFF)
@@ -40,6 +41,7 @@ configure_file(
 
 # 安装外部依赖
 set(OHNO_DEPS_DIR ${CMAKE_SOURCE_DIR}/deps)
+set(OHNO_DEPS_BUILD_DIR ${CMAKE_BINARY_DIR}/deps)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON) # 避免每次 remake 时候都对依赖进行更新
 include(FetchContent)
 FetchContent_Declare(
@@ -47,7 +49,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
   GIT_TAG v1.15.1
   SOURCE_DIR   "${OHNO_DEPS_DIR}/spdlog_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/spdlog_build"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/spdlog"
   SUBBUILD_DIR "${OHNO_DEPS_DIR}/spdlog_subbuild"
 )
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE) # 不要安装到系统目录
@@ -60,7 +62,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG v1.16.0
   SOURCE_DIR   "${OHNO_DEPS_DIR}/googletest_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/googletest_build"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/googletest"
   SUBBUILD_DIR "${OHNO_DEPS_DIR}/googletest_subbuild"
 )
 FetchContent_MakeAvailable(googletest)
@@ -76,7 +78,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
   GIT_TAG v0.9.7
   SOURCE_DIR   "${OHNO_DEPS_DIR}/magic_enum_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/magic_enum_build"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/magic_enum"
   SUBBUILD_DIR "${OHNO_DEPS_DIR}/magic_enum_subbuild"
 )
 FetchContent_MakeAvailable(magic_enum)
@@ -95,12 +97,61 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.12.0
   SOURCE_DIR   "${OHNO_DEPS_DIR}/nlohmann_json_src"
-  BINARY_DIR   "${OHNO_DEPS_DIR}/nlohmann_json_build"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/nlohmann_json"
   SUBBUILD_DIR "${OHNO_DEPS_DIR}/nlohmann_json_subbuild"
 )
 FetchContent_MakeAvailable(nlohmann_json)
 message(STATUS "nlohmann_json 头文件目录: ${nlohmann_json_SOURCE_DIR}/include")
 include_directories(${nlohmann_json_SOURCE_DIR}/include)
+
+FetchContent_Declare(
+  curl
+  GIT_REPOSITORY https://github.com/curl/curl.git
+  GIT_TAG curl-8_12_0
+  SOURCE_DIR   "${OHNO_DEPS_DIR}/curl_src"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/curl"
+  SUBBUILD_DIR "${OHNO_DEPS_DIR}/curl_subbuild"
+)
+set(BUILD_CURL_EXE OFF CACHE BOOL "构建 curl 命令行工具" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "构建 libcurl example" FORCE)
+set(BUILD_LIBCURL_DOCS OFF CACHE BOOL "构建 libcurl 文档" FORCE)
+set(BUILD_MISC_DOCS OFF CACHE BOOL "构建 misc 文档如 curl-config 或 mk-ca-bundle" FORCE)
+if(OHNO_ENABLE_STATIC_LIB)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "构建 libcurl 动态库" FORCE)
+  set(BUILD_STATIC_LIBS ON CACHE BOOL "构建 libcurl 静态库" FORCE)
+else()
+  message(FATAL_ERROR "暂不支持动态链接")
+endif()
+set(BUILD_TESTING ON CACHE BOOL "构建 libcurl 单元测试" FORCE)
+set(ENABLE_CURL_MANUAL OFF CACHE BOOL "构建文档并启用它的 -M/--manual 选项" FORCE)
+set(CURL_DISABLE_INSTALL ON CACHE BOOL "不安装 libcurl" FORCE)
+FetchContent_MakeAvailable(curl)
+set(CURL_INCLUDE_DIR ${curl_SOURCE_DIR}/include)
+message(STATUS "curl 头文件目录: ${CURL_INCLUDE_DIR}")
+include_directories(${CURL_INCLUDE_DIR})
+message(STATUS "curl 库文件目录: ${curl_BINARY_DIR}/lib")
+
+FetchContent_Declare(
+  curlpp
+  GIT_REPOSITORY https://github.com/jpbarrette/curlpp.git
+  GIT_TAG d080e301ec71061c46049d23fedfb8106be3153f
+  SOURCE_DIR   "${OHNO_DEPS_DIR}/curlpp_src"
+  BINARY_DIR   "${OHNO_DEPS_BUILD_DIR}/curlpp"
+  SUBBUILD_DIR "${OHNO_DEPS_DIR}/curlpp_subbuild"
+)
+if(OHNO_ENABLE_STATIC_LIB)
+  set(CURLPP_BUILD_SHARED_LIBS OFF CACHE BOOL "构建 curlpp 静态库" FORCE)
+else()
+  message(FATAL_ERROR "暂不支持动态链接")
+endif()
+if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
+  set(CURL_LIBRARY ${curl_BINARY_DIR}/lib/libcurl-d.a)
+else()
+  set(CURL_LIBRARY ${curl_BINARY_DIR}/lib/libcurl.a)
+endif()
+FetchContent_MakeAvailable(curlpp)
+message(STATUS "curlpp 头文件目录: ${curlpp_SOURCE_DIR}/include")
+include_directories(${curlpp_SOURCE_DIR}/include)
 
 # 引入头文件
 include_directories(
@@ -108,6 +159,13 @@ include_directories(
   ${CMAKE_BINARY_DIR}
   ${Boost_INCLUDE_DIRS}
 )
+
+if(OHNO_ENABLE_STATIC_LIB)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  set(BUILD_SHARED_LIBS OFF)
+else()
+  set(BUILD_SHARED_LIBS ON)
+endif()
 
 # 单元测试
 if(OHNO_TEST)
@@ -140,10 +198,13 @@ add_subdirectory(src)
 # 接口库
 add_library(${PROJECT_NAME}_core INTERFACE)
 target_link_libraries(${PROJECT_NAME}_core INTERFACE
+  ohno_backend
   ohno_cni
   ohno_common
   ohno_etcd
   ohno_helper
+  ohno_hostgw
+  ohno_http_client
   ohno_ipam
   ohno_log
   ohno_net

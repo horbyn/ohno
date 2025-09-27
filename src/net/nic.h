@@ -21,7 +21,6 @@ public:
   auto getNetns() const -> std::string override;
   auto setStatus(LinkStatus status) -> bool override;
   auto getStatus() const noexcept -> bool override;
-  auto getIndex() const -> uint32_t override;
   auto addAddr(std::unique_ptr<AddrIf> addr) -> bool override;
   auto delAddr(std::string_view cidr) -> bool override;
   auto getAddr(std::string_view cidr = {}) const -> const AddrIf * override;

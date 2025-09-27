@@ -21,7 +21,7 @@ namespace cni {
  */
 auto Storage::init(std::unique_ptr<etcd::EtcdClientIf> etcd_client) -> bool {
   etcd_client_ = std::move(etcd_client);
-  if (etcd_client_ == nullptr) {
+  if (etcd_client_ == nullptr || !etcd_client_->test()) {
     OHNO_LOG(warn, "ETCD client initialization failed");
     return false;
   }
@@ -277,7 +277,7 @@ auto Storage::addAddr(std::string_view node_name, std::string_view pod_name,
   OHNO_ASSERT(etcd_client_);
 
   auto key = Storage::getAddrKey(node_name, pod_name, nic_name);
-  auto addr_str = addr->getCidr();
+  auto addr_str = addr->getAddrCidr();
   if (etcd_client_->append(key, addr_str)) {
     OHNO_LOG(trace, "Storage add Addr:{} for NIC:{} for Pod:{} of Kubernetes node:{}", addr_str,
              nic_name, pod_name, node_name);

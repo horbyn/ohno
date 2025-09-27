@@ -28,9 +28,10 @@ public:
   virtual auto addressSetEntry(std::string_view name, std::string_view addr, bool add,
                                std::string_view netns = {}) -> bool = 0;
   virtual auto routeIsExist(std::string_view dst, std::string_view via, std::string_view dev = {},
-                            std::string_view netns = {}) -> bool = 0;
+                            std::string_view netns = {}) const -> bool = 0;
   virtual auto routeSetEntry(std::string_view dst, std::string_view via, bool add,
-                             std::string_view dev = {}, std::string_view netns = {}) -> bool = 0;
+                             std::string_view dev = {}, std::string_view netns = {}) const
+      -> bool = 0;
 };
 
 } // namespace net

@@ -18,12 +18,12 @@ namespace util {
  * @return true 执行成功
  * @return false 执行失败（返回值非零）
  */
-auto ShellSync::execute(std::string_view command, std::string &out) -> bool {
+auto ShellSync::execute(std::string_view command, std::string &out) const -> bool {
   std::string err{};
   int ret = execute(command, out, err);
   if (ret != 0) {
     if (!err.empty()) {
-      OHNO_LOG(warn, "\"{}\" done but with stderr: {}", command, err);
+      OHNO_LOG(warn, "\"{}\" done but with stderr:\n{}", command, err);
     }
     return false;
   }
@@ -39,7 +39,7 @@ auto ShellSync::execute(std::string_view command, std::string &out) -> bool {
  *
  * @return shell 命令返回值
  */
-auto ShellSync::execute(std::string_view command, std::string &out, std::string &err) -> int {
+auto ShellSync::execute(std::string_view command, std::string &out, std::string &err) const -> int {
   OHNO_ASSERT(!command.empty());
 
   int exit_code = 0;

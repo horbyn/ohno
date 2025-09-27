@@ -117,7 +117,7 @@ auto Node::setUnderlayAddr(std::string_view underlay_addr) -> void {
  * @return std::string 节点以太网口地址 CIDR，还没设置则返回空字符串
  */
 auto Node::getUnderlayAddr() const -> std::string {
-  return underlay_addr_ ? underlay_addr_->getCidr() : std::string{};
+  return underlay_addr_ ? underlay_addr_->getAddrCidr() : std::string{};
 }
 
 /**
