@@ -106,11 +106,13 @@ auto parseArguments(int argc, char *argv[]) -> Config {
       config.bkinfo_.refresh_interval_ = std::stoi(argv[++i]);
     } else if (arg == "--help") {
       printUsage(argv[0]);
-      exit(0);
+      config.bkinfo_.api_server_.clear();
+      return config;
     } else {
       std::cerr << "Unknown option: " << arg << std::endl;
       printUsage(argv[0]);
-      exit(1);
+      config.bkinfo_.api_server_.clear();
+      return config;
     }
   }
 
@@ -130,6 +132,9 @@ auto main(int argc, char **argv) -> int {
     signal(SIGTERM, handle_signals);
     signal(SIGINT, handle_signals);
     auto config = parseArguments(argc, argv);
+    if (config.bkinfo_.api_server_.empty()) {
+      return EXIT_SUCCESS;
+    }
 
     // 设置日志
     log::LogConfig log_conf{};

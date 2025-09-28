@@ -177,7 +177,7 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
 
   // 获取 Kubernetes Pod
   // 因为 container_id 是 pause 容器的标识，所以可以用来唯一标识一个 Pod
-  auto pod = getKubernetesPod(node, container_id, true);
+  auto pod = Cni::getKubernetesPod(node, container_id, true);
   if (!pod) {
     throw OHNO_CNIERR(
         cni::CNI_ERRCODE_OHNO,
@@ -277,7 +277,7 @@ auto Cni::del(std::string_view container_id, std::string_view nic_name) noexcept
                         fmt::format("Failed to get Kubernetes node:{}", node_name_));
     }
 
-    auto pod = getKubernetesPod(node, container_id);
+    auto pod = Cni::getKubernetesPod(node, container_id);
     if (!pod) {
       OHNO_LOG(warn, "CNI DEL: Pod had been deleted");
     } else {
@@ -290,7 +290,7 @@ auto Cni::del(std::string_view container_id, std::string_view nic_name) noexcept
       // 算上宿主机的 root namespace，数量为 1 说明节点刚才删除了最后一个 pod
 
       // 删除节点 root namespace bridge
-      auto host = getKubernetesPod(node, ipam::HOST);
+      auto host = Cni::getKubernetesPod(node, ipam::HOST);
       if (host) {
         delKubernetesNic(host, conf_.bridge_);
         delKubernetesNic(host, node_underlay_dev_);
@@ -652,7 +652,7 @@ auto Cni::nicPluginBridge(std::string_view nic_name) -> void {
     throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                       fmt::format("Failed to get Kubernetes node {}", node_name_));
   }
-  auto host = getKubernetesPod(node, ipam::HOST);
+  auto host = Cni::getKubernetesPod(node, ipam::HOST);
   if (!host) {
     OHNO_ASSERT(false); // 创建 Kubernetes 节点的时候一定会自动创建一个 root namespace
   }

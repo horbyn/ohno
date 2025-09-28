@@ -28,7 +28,7 @@ public:
   static auto getApiServer(Type type, const util::EnvIf *env) -> std::string;
 
 private:
-  auto getSslDir(Type type, bool host_ca) const -> std::string_view;
+  static auto getSslDir(Type type, bool host_ca) -> std::string_view;
   auto getToken(Type type) const -> std::string;
   auto getCa(Type type) const -> std::string;
   auto getHttpResponse(const net::HttpClientIf *http_client, std::string_view uri,

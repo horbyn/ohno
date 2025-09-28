@@ -23,7 +23,7 @@ Addr::Addr(std::string_view cidr) {
     size_t pos = cidr_str.find('/');
     if (pos == std::string::npos) {
       addr_str = cidr_str;
-      prefix_ = 32;
+      prefix_ = MAX_PREFIX_IPV4;
     } else {
       addr_str = cidr_str.substr(0, pos);
       prefix_ = static_cast<Prefix>(std::stoi(cidr_str.substr(pos + 1)));

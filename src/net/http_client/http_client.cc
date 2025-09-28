@@ -56,7 +56,6 @@ auto HttpClient::httpRequest(HttpMethod method, std::string_view uri, std::strin
     OHNO_LOG(trace, "HTTP {} request", enumName(method));
     switch (method) {
     case HttpMethod::GET:
-      break;
     case HttpMethod::POST:
       break;
     case HttpMethod::DELETE:
@@ -72,7 +71,7 @@ auto HttpClient::httpRequest(HttpMethod method, std::string_view uri, std::strin
     if (!req_body.empty()) {
       OHNO_LOG(trace, "HTTP request body:\n{}", req_body);
       request.setOpt(new curlpp::options::PostFields(std::string{req_body}));
-      request.setOpt(new curlpp::options::PostFieldSize(req_body.size()));
+      request.setOpt(new curlpp::options::PostFieldSize(static_cast<long>(req_body.size())));
     }
 
     request.perform();

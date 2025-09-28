@@ -49,8 +49,8 @@ private:
                   const std::shared_ptr<net::NicIf> &underlay_nic) -> void;
   auto getKubernetesNode(bool get_and_create, const std::weak_ptr<net::NetlinkIf> &netlink = {})
       -> std::shared_ptr<ipam::NodeIf>;
-  auto getKubernetesPod(const std::shared_ptr<ipam::NodeIf> &node, std::string_view pod_name,
-                        bool create = false) -> std::shared_ptr<ipam::NetnsIf>;
+  static auto getKubernetesPod(const std::shared_ptr<ipam::NodeIf> &node, std::string_view pod_name,
+                               bool create = false) -> std::shared_ptr<ipam::NetnsIf>;
   auto delKubernetesPod(const std::shared_ptr<ipam::NodeIf> &node, std::string_view pod_name)
       -> void;
   auto nicPluginBridge(std::string_view nic_name) -> void;

@@ -7,6 +7,7 @@
 #include "src/cni/cni_config.h"
 #include "src/common/assert.h"
 #include "src/common/except.h"
+#include "src/kube/kube_apiv1_nodes.h"
 #include "src/net/http_client/http_client.h"
 // clang-format on
 
@@ -37,7 +38,7 @@ auto Center::test() const -> bool {
       throw OHNO_EXCEPT(
           fmt::format(
               "Fails to access api server because ca:\"{}\" or token \"{}\" from \"{}\" invalid",
-              ca_path_, token_, fmt::format("{}/token", getSslDir(type_, false))),
+              ca_path_, token_, fmt::format("{}/token", Center::getSslDir(type_, false))),
           false);
     }
 
@@ -48,7 +49,7 @@ auto Center::test() const -> bool {
       throw OHNO_EXCEPT(fmt::format("Fails to access api server, getting code:{} with "
                                     "response:\"{}\", using token \"{}\" from \"{}\"",
                                     static_cast<long>(code), response, token_,
-                                    fmt::format("{}/token", getSslDir(type_, false))),
+                                    fmt::format("{}/token", Center::getSslDir(type_, false))),
                         false);
     }
   } catch (const ohno::except::Exception &exc) {
@@ -62,7 +63,7 @@ auto Center::test() const -> bool {
   }
 
   OHNO_LOG(info, "Successfully accesses api server: {}, ca_path: {}, token_path: {}, ssl: {}",
-           api_server_, ca_path_, fmt::format("{}/token", getSslDir(type_, false)),
+           api_server_, ca_path_, fmt::format("{}/token", Center::getSslDir(type_, false)),
            (ssl_ ? "enable" : "disable"));
   return true;
 }
@@ -110,7 +111,7 @@ auto Center::getEtcdClusters() -> std::string {
     startPos += 3; // "://" 之后就是主机名部分
 
     // 寻找主机部分的结束位置，即冒号（:）或者末尾
-    size_t endPos = uri.find(":", startPos);
+    size_t endPos = uri.find(':', startPos);
     if (endPos == std::string::npos) {
       endPos = uri.length(); // 如果没有找到冒号，表示没有端口号，主机地址到末尾
     }
@@ -174,12 +175,11 @@ auto Center::getApiServer(Type type, const util::EnvIf *env) -> std::string {
  * @param host_ca HOST 环境下 CA 目录（true）还是 token 目录（false），如果是 POD 环境则忽略这个参数
  * @return std::string_view ssl 目录
  */
-auto Center::getSslDir(Type type, bool host_ca) const -> std::string_view {
+auto Center::getSslDir(Type type, bool host_ca) -> std::string_view {
   if (type == Type::POD) {
     return PATH_CA_POD;
-  } else {
-    return host_ca ? PATH_CA_HOST : PATH_TOKEN_HOST;
   }
+  return host_ca ? PATH_CA_HOST : PATH_TOKEN_HOST;
 }
 
 /**
@@ -192,13 +192,13 @@ auto Center::getToken(Type type) const -> std::string {
   std::string token{};
   try {
     token = Center::readFile(
-        fmt::format("{}/token", getSslDir(type, false /* 当 type 是 POD 时该参数无效 */)));
+        fmt::format("{}/token", Center::getSslDir(type, false /* 当 type 是 POD 时该参数无效 */)));
 
     if (type == Type::POD) {
       // 运行在 Pod 环境的 Daemon Set 需要维护 token，向记录到宿主机
-      std::ofstream file{fmt::format("{}/token", getSslDir(Type::HOST, false))};
+      std::ofstream file{fmt::format("{}/token", Center::getSslDir(Type::HOST, false))};
       if (!file.is_open()) {
-        OHNO_LOG(warn, "Failed to write token to host: {}", strerror(errno));
+        OHNO_LOG(warn, "Failed to write token to host");
       }
       file << token;
     }
@@ -219,7 +219,7 @@ auto Center::getToken(Type type) const -> std::string {
  * @return std::string CA 证书路径，文件不存在返回空
  */
 auto Center::getCa(Center::Type type) const -> std::string {
-  auto pathname = fmt::format("{}/ca.crt", getSslDir(type, true));
+  auto pathname = fmt::format("{}/ca.crt", Center::getSslDir(type, true));
   namespace fs = std::filesystem;
   fs::path path{pathname};
   if (!fs::exists(path)) {
@@ -276,38 +276,28 @@ auto Center::getNodes(const net::HttpClientIf *http_client, bool is_all, NodeInf
                                     static_cast<long>(code), response),
                         false);
     }
-    auto nodes = nlohmann::json::parse(response);
-
-    if (nodes.contains("items")) {
+    kube::apiv1::KubeApiv1Nodes nodes = nlohmann::json::parse(response);
+    for (const auto &item : nodes.items_) {
       NodeInfo info{};
-      for (const auto &item : nodes["items"]) {
-        if (item.contains("metadata") && item["metadata"].contains("name")) {
-          info.name_ = item["metadata"]["name"];
-        }
-        if (!is_all && info.name_ != single.name_) {
-          continue;
-        }
+      info.name_ = item.metadata_.name_;
+      info.pod_cidr_ = item.spec_.pod_cidr_;
 
-        if (item.contains("status") && item["status"].contains("addresses")) {
-          for (const auto &addr : item["status"]["addresses"]) {
-            if (addr.contains("type") && addr["type"] == "InternalIP") {
-              info.internal_ip_ = addr["address"];
-              break;
-            }
-          }
-        }
+      if (!is_all && single.name_ != info.name_) {
+        continue;
+      }
 
-        if (item.contains("spec") && item["spec"].contains("podCIDR")) {
-          info.pod_cidr_ = item["spec"]["podCIDR"];
-        }
-
-        if (!is_all) {
-          single = info;
+      for (const auto &addr : item.status_.addresses_) {
+        if (addr.type_ == kube::apiv1::Address::Type::InternalIP) {
+          info.internal_ip_ = addr.address_;
           break;
-        } else {
-          all[info.name_] = info;
         }
       }
+
+      if (!is_all) {
+        single = info;
+        break;
+      }
+      all[info.name_] = info;
     }
   } catch (const ohno::except::Exception &exc) {
     OHNO_LOG(
@@ -371,7 +361,7 @@ auto Center::getServerUrl(std::string_view conf_path) -> std::string {
   server_pos += SERVER.size() + 1;
 
   // 查找当前行结束（空格）
-  size_t end_pos = yaml.find(" ", server_pos);
+  size_t end_pos = yaml.find(' ', server_pos);
   if (end_pos == std::string::npos) {
     end_pos = yaml.length(); // 如果没有换行符，则直到字符串结尾
   }

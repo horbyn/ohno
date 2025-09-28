@@ -50,7 +50,7 @@ auto HostGw::setIpam(std::unique_ptr<ipam::IpamIf> ipam) -> void { ipam_ = std::
 auto HostGw::setNic(std::unique_ptr<net::NicIf> nic, std::weak_ptr<net::NetlinkIf> netlink)
     -> bool {
   nic_ = std::move(nic);
-  return nic_->setup(netlink);
+  return nic_->setup(std::move(netlink));
 }
 
 /**

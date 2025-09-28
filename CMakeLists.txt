@@ -206,6 +206,7 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   ohno_hostgw
   ohno_http_client
   ohno_ipam
+  ohno_kube
   ohno_log
   ohno_net
   ohno_util
