@@ -11,8 +11,7 @@ namespace backend {
 class Scheduler : public SchedulerIf, public log::Loggable<log::Id::backend> {
 public:
   auto setStrategy(std::unique_ptr<BackendIf> backend) -> void override;
-  auto start(std::string_view node_name, std::weak_ptr<ohno::net::NetlinkIf> netlink,
-             const ohno::backend::BackendInfo &backend_info) -> void override;
+  auto start(std::string_view node_name) -> void override;
   auto stop() -> void override;
 
 private:

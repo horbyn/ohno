@@ -21,11 +21,16 @@ apt-get install etcd-client
 ## 项目构建
 
 ```shell
-cmake -S . -B build
+# debug 版本
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DOHNO_STATIC_ANALYSIS=ON -DOHNO_MEMCHECK=ON -DOHNO_TEST=ON -DOHNO_BENCHMARK=ON -DOHNO_FLAMEGRAPH=ON -DENABLE_ETCDCTL_TEST=ON
+cmake --build build -j $(getconf _NPROCESSORS_ONLN)
+
+# release 版本
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j $(getconf _NPROCESSORS_ONLN)
 ```
 
-项目已压缩包形式交付，执行 `scripts/pack.sh` 进行打包，然后会在 `packages` 目录生成压缩包
+项目以压缩包形式交付，执行 `scripts/pack.sh` 进行打包，然后会在 `packages` 目录生成压缩包
 
 ```shell
 ➜  /ohno git:(dev) ✗ scripts/pack.sh                                     

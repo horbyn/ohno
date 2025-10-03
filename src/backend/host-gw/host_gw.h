@@ -1,9 +1,11 @@
 #pragma once
 
 // clang-format off
-#include "gw_if.h"
+#include <atomic>
 #include <memory>
+#include <thread>
 #include <unordered_map>
+#include "src/backend/backend_if.h"
 #include "src/backend/center_if.h"
 #include "src/ipam/ipam_if.h"
 #include "src/log/logger.h"
@@ -12,25 +14,31 @@
 // clang-format on
 
 namespace ohno {
-namespace hostgw {
+namespace backend {
 
-class HostGw : public HostGwIf, public log::Loggable<log::Id::hostgw> {
+constexpr int DEFAULT_INTERVAL{1};
+
+class HostGw : public BackendIf, public log::Loggable<log::Id::backend> {
 public:
-  auto setCurrentNode(std::string_view name) -> void;
-  auto getCurrentNode() const -> std::string;
+  auto start(std::string_view node_name) -> void override;
+  auto stop() -> void override;
+
+  auto setInterval(int sec) -> void;
   auto setCenter(std::unique_ptr<backend::CenterIf> center) -> void;
   auto setIpam(std::unique_ptr<ipam::IpamIf> ipam) -> void;
   auto setNic(std::unique_ptr<net::NicIf> nic, std::weak_ptr<net::NetlinkIf> netlink) -> bool;
 
-  auto eventHandler() -> void override;
-
 private:
-  std::string current_node_;
+  auto eventHandler(std::string_view current_node) -> void;
+
+  int interval_;
   std::unique_ptr<backend::CenterIf> center_;
   std::unique_ptr<ipam::IpamIf> ipam_;
   std::unique_ptr<net::NicIf> nic_;
   std::unordered_map<std::string, backend::NodeInfo> node_cache_;
+  std::atomic<bool> running_;
+  std::thread monitor_;
 };
 
-} // namespace hostgw
+} // namespace backend
 } // namespace ohno

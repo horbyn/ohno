@@ -4,7 +4,6 @@
 #include <functional>
 #include "backend_info.h"
 #include "src/cni/cni_config.h"
-#include "src/net/netlink/netlink_if.h"
 // clang-format on
 
 namespace ohno {
@@ -18,9 +17,7 @@ namespace backend {
 class BackendIf {
 public:
   virtual ~BackendIf() = default;
-  virtual auto start(cni::CniConfigIpam::Mode mode, std::string_view node_name,
-                     std::weak_ptr<net::NetlinkIf> netlink, const BackendInfo &backend_info)
-      -> void = 0;
+  virtual auto start(std::string_view node_name) -> void = 0;
   virtual auto stop() -> void = 0;
 };
 

@@ -10,9 +10,8 @@
 #include "spdlog/fmt/fmt.h"
 #include "ohno_version.h"
 #include "src/backend/backend_info.h"
-#include "src/backend/backend.h"
 #include "src/backend/center.h"
-#include "src/backend/scheduler.h"
+#include "src/backend/strategy_client.h"
 #include "src/common/except.h"
 #include "src/log/logger.h"
 #include "src/net/netlink/netlink_ip_cmd.h"
@@ -29,7 +28,7 @@ struct Config {
   ohno::log::Level log_level_;
 };
 
-std::unique_ptr<ohno::backend::SchedulerIf> g_scheduler{};
+static std::unique_ptr<ohno::backend::StrategyClient> g_client{};
 constexpr size_t DEF_INTERVAL_SEC{5};
 
 /**
@@ -37,12 +36,12 @@ constexpr size_t DEF_INTERVAL_SEC{5};
  *
  * @param sig Linux 信号
  */
-void handle_signals(int sig) {
+auto handleSignals(int sig) -> void {
   if (sig == SIGTERM || sig == SIGINT) {
-    if (g_scheduler) {
+    if (g_client) {
       using namespace ohno;
       OHNO_GLOBAL_LOG(info, "Exiting ohnod with resources releasing ...");
-      g_scheduler->stop();
+      g_client->stopStrategy();
     }
   }
 }
@@ -129,8 +128,8 @@ auto main(int argc, char **argv) -> int {
   using namespace ohno;
 
   try {
-    signal(SIGTERM, handle_signals);
-    signal(SIGINT, handle_signals);
+    signal(SIGTERM, handleSignals);
+    signal(SIGINT, handleSignals);
     auto config = parseArguments(argc, argv);
     if (config.bkinfo_.api_server_.empty()) {
       return EXIT_SUCCESS;
@@ -155,9 +154,10 @@ auto main(int argc, char **argv) -> int {
 
     // 启动 daemon
     auto netlink = std::make_shared<net::NetlinkIpCmd>(std::move(shell));
-    g_scheduler = std::make_unique<backend::Scheduler>();
-    g_scheduler->setStrategy(std::make_unique<backend::Backend>());
-    g_scheduler->start(node_name, netlink, config.bkinfo_);
+    g_client = std::make_unique<backend::StrategyClient>();
+    g_client->setBackendInfo(config.bkinfo_);
+    g_client->setNetlink(netlink);
+    g_client->executeStrategy(node_name);
 
     // 睡眠
     pause();

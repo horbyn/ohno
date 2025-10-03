@@ -1,27 +1,67 @@
 // clang-format off
-#include "gw.h"
+#include "host_gw.h"
 #include "spdlog/fmt/fmt.h"
 #include "src/common/assert.h"
+#include "src/common/except.h"
 #include "src/net/addr.h"
 #include "src/net/route.h"
 // clang-format on
 
 namespace ohno {
-namespace hostgw {
+namespace backend {
 
 /**
- * @brief 设置当前 Kubernetes 节点名称
+ * @brief 启动后端线程
  *
- * @param name 节点名称
+ * @param node_name 当前 Kubernetes 节点名称
  */
-auto HostGw::setCurrentNode(std::string_view name) -> void { current_node_ = name; }
+auto HostGw::start(std::string_view node_name) -> void {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(center_);
+  OHNO_ASSERT(ipam_);
+  OHNO_ASSERT(nic_);
+
+  if (running_) {
+    return;
+  }
+  running_ = true;
+
+  auto interval = interval_ == 0 ? DEFAULT_INTERVAL : interval_;
+  monitor_ = std::thread{[&running = running_,
+                          callback = std::bind(&HostGw::eventHandler, this, node_name),
+                          interv = interval]() {
+    try {
+      pthread_setname_np(pthread_self(), "host-gw");
+
+      while (running.load()) {
+        callback();
+        std::this_thread::sleep_for(std::chrono::seconds(interv));
+      }
+    } catch (const ohno::except::Exception &exc) {
+      std::cerr << "[error] Ohnod worker thread terminated!" << exc.getMsg() << "\n";
+    } catch (const std::exception &exc) {
+      std::cerr << "[error] Ohnod worker thread terminated!" << exc.what() << "\n";
+    }
+  }};
+}
 
 /**
- * @brief 获取当前 Kubernetes 节点名称
+ * @brief 停止后端线程
  *
- * @return std::string 节点名称
  */
-auto HostGw::getCurrentNode() const -> std::string { return current_node_; }
+auto HostGw::stop() -> void {
+  running_ = false;
+  if (monitor_.joinable()) {
+    monitor_.join();
+  }
+}
+
+/**
+ * @brief 设置轮询时间间隔，单位秒
+ *
+ * @param sec 监听的时间间隔
+ */
+auto HostGw::setInterval(int sec) -> void { interval_ = sec; }
 
 /**
  * @brief 设置 Center 对象
@@ -56,20 +96,16 @@ auto HostGw::setNic(std::unique_ptr<net::NicIf> nic, std::weak_ptr<net::NetlinkI
 /**
  * @brief 触发事件
  *
+ * @param current_node 当前 Kubernetes 节点名称
  */
-auto HostGw::eventHandler() -> void {
-  OHNO_ASSERT(center_);
-  OHNO_ASSERT(ipam_);
-  OHNO_ASSERT(nic_);
-  auto current_node = getCurrentNode();
-
+auto HostGw::eventHandler(std::string_view current_node) -> void {
   // 集群是直接从 Kubernetes api server 中获取的，包含所有节点
   auto cluster = center_->getKubernetesData();
 
   // 持久化是从分布式缓存中获取的，仅包含创建了 CNI 插件的节点
   std::string subnet_cur{};
   std::string subnet{};
-  ipam_->getSubnet(current_node_, subnet_cur);
+  ipam_->getSubnet(current_node, subnet_cur);
 
   if (!subnet_cur.empty()) {
     // 检查节点新增
@@ -118,5 +154,5 @@ auto HostGw::eventHandler() -> void {
   }
 }
 
-} // namespace hostgw
+} // namespace backend
 } // namespace ohno
