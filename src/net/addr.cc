@@ -16,19 +16,20 @@ Addr::Addr(std::string_view cidr) {
       throw std::invalid_argument("Missing CIDR");
     }
 
-    const std::regex IPv4_RE(IPv4_REGEX.data());
     std::string cidr_str{cidr};
     std::string addr_str{};
 
     size_t pos = cidr_str.find('/');
     if (pos == std::string::npos) {
       addr_str = cidr_str;
+      cidr_str += fmt::format("/{}", MAX_PREFIX_IPV4);
       prefix_ = MAX_PREFIX_IPV4;
     } else {
       addr_str = cidr_str.substr(0, pos);
       prefix_ = static_cast<Prefix>(std::stoi(cidr_str.substr(pos + 1)));
     }
 
+    const std::regex IPv4_RE(IPv4_REGEX.data());
     if (std::regex_match(cidr_str, IPv4_RE)) {
       // IPv4 解析
       ipversion_ = IpVersion::IPv4;

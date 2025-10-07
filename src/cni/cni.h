@@ -44,8 +44,11 @@ private:
       -> std::unique_ptr<ipam::ClusterIf>;
   auto getBridge(const std::weak_ptr<net::NetlinkIf> &netlink, std::string_view bridge_addr)
       -> std::shared_ptr<net::NicIf>;
+  auto getVxlan(const std::weak_ptr<net::NetlinkIf> &netlink, std::string_view node_subnet)
+      -> std::shared_ptr<net::NicIf>;
   auto getRootPod(const std::shared_ptr<ipam::NodeIf> &node,
                   const std::shared_ptr<net::NicIf> &bridge,
+                  const std::shared_ptr<net::NicIf> &vxlan,
                   const std::shared_ptr<net::NicIf> &underlay_nic) -> void;
   auto getKubernetesNode(bool get_and_create, const std::weak_ptr<net::NetlinkIf> &netlink = {})
       -> std::shared_ptr<ipam::NodeIf>;

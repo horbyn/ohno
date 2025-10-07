@@ -4,26 +4,46 @@
 #include "spdlog/fmt/fmt.h"
 #include "scheduler.h"
 #include "center.h"
-#include "src/backend/host-gw/host_gw.h"
+#include "src/backend/host_gw.h"
+#include "src/backend/vxlan.h"
 #include "src/common/assert.h"
 #include "src/cni/cni_config.h"
+#include "src/cni/storage.h"
 #include "src/common/except.h"
 #include "src/etcd/etcd_client_shell.h"
 #include "src/ipam/ipam.h"
 #include "src/net/nic.h"
 #include "src/util/shell_sync.h"
+#include "src/util/env_std.h"
 // clang-format on
 
 namespace ohno {
 namespace backend {
 
+/**
+ * @brief 设置 Netlink 对象
+ *
+ * @param netlink 对象
+ * @return true 成功
+ * @return false 失败
+ */
 auto StrategyClient::setNetlink(std::weak_ptr<net::NetlinkIf> netlink) -> bool {
   netlink_ = netlink.lock();
   return netlink_ != nullptr;
 }
 
+/**
+ * @brief 设置后端信息
+ *
+ * @param bkinfo 后端信息
+ */
 auto StrategyClient::setBackendInfo(const BackendInfo &bkinfo) -> void { bkinfo_ = bkinfo; }
 
+/**
+ * @brief 执行后端策略
+ *
+ * @param node_name 节点名称
+ */
 auto StrategyClient::executeStrategy(std::string_view node_name) -> void {
   std::ifstream ifile{std::string{PATH_CNI_CONF}};
   if (!ifile.is_open()) {
@@ -37,46 +57,94 @@ auto StrategyClient::executeStrategy(std::string_view node_name) -> void {
   scheduler_.reset(new Scheduler{});
   OHNO_ASSERT(scheduler_ != nullptr);
 
-  switch (cni_conf.ipam_.mode_) {
-  case cni::CniConfigIpam::Mode::host_gw:
-    scheduler_->setStrategy(getHostGw());
-    break;
-  default:
-    throw OHNO_EXCEPT("CNI configuration has invalid entry(ipam.mode)", false);
-  }
-
+  scheduler_->setStrategy(getStrategy(cni_conf.ipam_.mode_));
   scheduler_->start(node_name);
 }
 
+/**
+ * @brief 停止后端策略
+ *
+ */
 auto StrategyClient::stopStrategy() -> void {
   if (scheduler_ != nullptr) {
     scheduler_->stop();
   }
 }
 
-auto StrategyClient::getHostGw() const -> std::unique_ptr<BackendIf> {
+/**
+ * @brief 获取策略对象
+ *
+ * @param mode 路由模式
+ * @return std::unique_ptr<BackendIf> 策略对象
+ */
+auto StrategyClient::getStrategy(cni::CniConfigIpam::Mode mode) const
+    -> std::unique_ptr<BackendIf> {
   OHNO_ASSERT(netlink_ != nullptr);
   OHNO_ASSERT(!bkinfo_.api_server_.empty());
   OHNO_ASSERT(bkinfo_.refresh_interval_ != 0);
 
+  std::unique_ptr<BackendIf> strategy{};
+  switch (mode) {
+  case cni::CniConfigIpam::Mode::host_gw:
+    strategy = getHostgw();
+    OHNO_LOG(info, "Ohond host-gw mode init successfully!");
+    break;
+  case cni::CniConfigIpam::Mode::vxlan:
+    strategy = getVxlan();
+    OHNO_LOG(info, "Ohond vxlan mode init successfully!");
+    break;
+  default:
+    throw OHNO_EXCEPT("CNI configuration has invalid entry(ipam.mode)", false);
+  }
+
+  auto center = std::make_unique<Center>(bkinfo_.api_server_, bkinfo_.ssl_, Center::Type::POD);
+  if (!center->test()) {
+    throw OHNO_EXCEPT("Kubernetes api server is unhealthy", false);
+  }
+  auto nic = std::make_unique<net::Nic>();
+  if (!nic->setup(std::move(netlink_))) {
+    throw OHNO_EXCEPT("Failed to setup nic", false);
+  }
+  strategy->setInterval(bkinfo_.refresh_interval_);
+  strategy->setCenter(std::move(center));
+  strategy->setNic(std::move(nic));
+
+  return strategy;
+}
+
+/**
+ * @brief 获取 host-gw 对象
+ *
+ * @return std::unique_ptr<BackendIf> 后端策略
+ */
+auto StrategyClient::getHostgw() const -> std::unique_ptr<BackendIf> {
   auto ipam = std::make_unique<ipam::Ipam>();
   if (!ipam->init(std::make_unique<etcd::EtcdClientShell>(etcd::EtcdData{Center::getEtcdClusters()},
                                                           std::make_unique<util::ShellSync>(),
                                                           std::make_unique<util::EnvStd>()))) {
     throw OHNO_EXCEPT("Failed to initialize IPAM, please check in ETCD cluster", false);
   }
-  auto host_gw = std::make_unique<HostGw>();
-  host_gw->setInterval(bkinfo_.refresh_interval_);
-  auto center = std::make_unique<Center>(bkinfo_.api_server_, bkinfo_.ssl_, Center::Type::POD);
-  if (!center->test()) {
-    throw OHNO_EXCEPT("Kubernetes api server is unhealthy", false);
+
+  auto hostgw = std::make_unique<HostGw>();
+  hostgw->setIpam(std::move(ipam));
+  return hostgw;
+}
+
+/**
+ * @brief 获取 vxlan 对象
+ *
+ * @return std::unique_ptr<BackendIf> 后端策略
+ */
+auto StrategyClient::getVxlan() const -> std::unique_ptr<BackendIf> {
+  auto storage = std::make_unique<cni::Storage>();
+  if (!storage->init(std::make_unique<etcd::EtcdClientShell>(
+          etcd::EtcdData{Center::getEtcdClusters()}, std::make_unique<util::ShellSync>(),
+          std::make_unique<util::EnvStd>()))) {
+    throw OHNO_EXCEPT("Failed to initialize storage, please check in ETCD cluster", false);
   }
-  host_gw->setCenter(std::move(center));
-  host_gw->setIpam(std::move(ipam));
-  if (!host_gw->setNic(std::make_unique<net::Nic>(), netlink_)) {
-    throw OHNO_EXCEPT("Cannot set root namespace Netlink", false);
-  }
-  return host_gw;
+  auto vxlan = std::make_unique<Vxlan>();
+  vxlan->setStorage(std::move(storage));
+  return vxlan;
 }
 
 } // namespace backend

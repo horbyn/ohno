@@ -41,9 +41,6 @@ void from_json(const nlohmann::json &json, CniConfig &conf) {
     auto level_opt = stringEnum<log::Level>(json.at(JKEY_CNI_CC_LOGLEVEL).get<std::string>());
     conf.loglevel_ = level_opt.has_value() ? level_opt.value() : log::Level::info;
   }
-  if (json.contains(JKEY_CNI_CC_SUBNET_PREFIX)) {
-    conf.subnet_prefix_ = json.at(JKEY_CNI_CC_SUBNET_PREFIX).get<int>();
-  }
   if (json.contains(JKEY_CNI_CC_SSL)) {
     conf.ssl_ = json.at(JKEY_CNI_CC_SSL).get<bool>();
   }
@@ -59,7 +56,6 @@ void to_json(nlohmann::json &json, const CniConfig &conf) {
                         {JKEY_CNI_CC_BRIDGE, conf.bridge_},
                         {JKEY_CNI_CC_LOG, conf.log_},
                         {JKEY_CNI_CC_LOGLEVEL, enumName(conf.loglevel_)},
-                        {JKEY_CNI_CC_SUBNET_PREFIX, conf.subnet_prefix_},
                         {JKEY_CNI_CC_SSL, conf.ssl_},
                         {JKEY_CNI_CC_IPAM, conf.ipam_}};
 }

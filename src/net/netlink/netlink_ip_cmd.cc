@@ -2,6 +2,7 @@
 #include "netlink_ip_cmd.h"
 #include "spdlog/fmt/fmt.h"
 #include "src/common/assert.h"
+#include "src/common/enum_name.hpp"
 // clang-format on
 
 namespace ohno {
@@ -134,6 +135,27 @@ auto NetlinkIpCmd::bridgeCreate(std::string_view name) -> bool {
 }
 
 /**
+ * @brief 创建 vxlan
+ *
+ * @param name 网卡名称
+ * @param underlay_addr 底层网卡地址
+ * @param underlay_dev 底层网卡
+ * @return true 成功
+ * @return false 失败
+ */
+auto NetlinkIpCmd::vxlanCreate(std::string_view name, std::string_view underlay_addr,
+                               std::string_view underlay_dev) -> bool {
+  OHNO_ASSERT(!name.empty());
+  OHNO_ASSERT(!underlay_addr.empty());
+  OHNO_ASSERT(!underlay_dev.empty());
+  std::string cmd =
+      fmt::format("ip link add dev {} type vxlan id {} dstport {} local {} dev {} nolearning proxy",
+                  name, VXLAN_VNI, PORT_VXLAN, underlay_addr, underlay_dev);
+  return executeCommand(cmd, "Failed to create vxlan {}, local {}, dev {}", name, underlay_addr,
+                        underlay_dev);
+}
+
+/**
  * @brief 设置 Linux bridge 接口
  *
  * @param name 需要处理的网络接口
@@ -196,8 +218,6 @@ auto NetlinkIpCmd::addressSetEntry(std::string_view name, std::string_view addr,
 /**
  * @brief 检查路由是否存在
  *
- * @note 仅仅是检查程序是否有缓存这条路由，不会检查系统中是否存在这条路由
- *
  * @param dst 目的网段（可以为空）
  * @param via 下一跳地址
  * @param dev 经过设备（可以为空）
@@ -210,7 +230,7 @@ auto NetlinkIpCmd::routeIsExist(std::string_view dst, std::string_view via, std:
   OHNO_ASSERT(!via.empty());
   std::string dest = dst.empty() ? "default" : std::string{dst};
   std::string device = dev.empty() ? std::string{} : fmt::format("dev {}", dev);
-  std::string cmd = addNetns(fmt::format("ip route show {} via {} ", dest, via, device), netns);
+  std::string cmd = addNetns(fmt::format("ip route show {} via {} {}", dest, via, device), netns);
   std::string output{};
   std::string error{};
   if (shell_->execute(cmd, output, error) == 0) {
@@ -228,18 +248,117 @@ auto NetlinkIpCmd::routeIsExist(std::string_view dst, std::string_view via, std:
  * @param add 增加路由（true），删除路由（false）
  * @param dev 网络接口名称（可以为空）
  * @param netns 网络空间名称（可以为空）
+ * @param nhflags NH 标识（可以为空）
  * @return true 设置成功
  * @return false 设置失败
  */
 auto NetlinkIpCmd::routeSetEntry(std::string_view dst, std::string_view via, bool add,
-                                 std::string_view dev, std::string_view netns) const -> bool {
+                                 std::string_view dev, std::string_view netns,
+                                 RouteNHFlags nhflags) const -> bool {
   OHNO_ASSERT(!via.empty());
   std::string action = add ? "add" : "del";
   std::string dest = dst.empty() ? "default" : std::string{dst};
   std::string device = dev.empty() ? std::string{} : fmt::format("dev {}", dev);
+  std::string nhflags_str =
+      nhflags == RouteNHFlags::NONE ? std::string{} : std::string{enumName(nhflags)};
+  std::string cmd = addNetns(
+      fmt::format("ip route {} {} via {} {} {}", action, dest, via, device, nhflags_str), netns);
+  return executeCommand(cmd, "Failed to {} route({} via {}) {}", action, dest, via, nhflags_str);
+}
+
+/**
+ * @brief 检查 ARP 缓存是否存在
+ *
+ * @param addr 三层地址
+ * @param dev 经过设备（可以为空）
+ * @param netns 网络空间（可以为空）
+ * @return true 存在
+ * @return false 不存在
+ */
+auto NetlinkIpCmd::neighIsExist(std::string_view addr, std::string_view dev,
+                                std::string_view netns) const -> bool {
+  OHNO_ASSERT(!addr.empty());
+  std::string device = dev.empty() ? std::string{} : fmt::format("dev {}", dev);
+  std::string cmd = addNetns(fmt::format("ip neigh show {} {}", addr, device), netns);
+  std::string output{};
+  std::string error{};
+  if (shell_->execute(cmd, output, error) == 0) {
+    return !output.empty(); // 输出为空则不存在；存在输出则存在
+  }
+  OHNO_LOG(warn, "Failed to execute command: {}", cmd);
+  return false;
+}
+
+/**
+ * @brief 设置 ARP 缓存条目
+ *
+ * @param addr 三层地址
+ * @param mac MAC 地址
+ * @param add 增加路由（true），删除路由（false）
+ * @param dev 网络接口名称（可以为空）
+ * @param netns 网络空间名称（可以为空）
+ * @return true 设置成功
+ * @return false 设置失败
+ */
+auto NetlinkIpCmd::neighSetEntry(std::string_view addr, std::string_view mac, bool add,
+                                 std::string_view dev, std::string_view netns) const -> bool {
+  OHNO_ASSERT(!addr.empty());
+  OHNO_ASSERT(!mac.empty());
+  std::string action = add ? "add" : "del";
+  std::string device = dev.empty() ? std::string{} : fmt::format("dev {}", dev);
   std::string cmd =
-      addNetns(fmt::format("ip route {} {} via {} {}", action, dest, via, device), netns);
-  return executeCommand(cmd, "Failed to {} route({} via {})", action, dest, via);
+      addNetns(fmt::format("ip neigh {} {} lladdr {} {}", action, addr, mac, device), netns);
+  return executeCommand(cmd, "Failed to {} ARP cache({} lladr {})", action, addr, mac);
+}
+
+/**
+ * @brief 检查 FDB 表项是否存在
+ *
+ * @param mac MAC 地址
+ * @param underlay_addr 底层地址
+ * @param dev 所在设备
+ * @param netns 网络空间（可以为空）
+ * @return true 存在
+ * @return false 不存在
+ */
+auto NetlinkIpCmd::fdbIsExist(std::string_view mac, std::string_view underlay_addr,
+                              std::string_view dev, std::string_view netns) const -> bool {
+  OHNO_ASSERT(!mac.empty());
+  OHNO_ASSERT(!underlay_addr.empty());
+  OHNO_ASSERT(!dev.empty());
+  std::string cmd = addNetns(
+      fmt::format("bridge fdb show dev {} | grep {} | grep {}", dev, mac, underlay_addr), netns);
+  std::string output{};
+  std::string error{};
+  if (shell_->execute(cmd, output, error) == 0) {
+    return !output.empty(); // 输出为空则不存在；存在输出则存在
+  }
+  OHNO_LOG(warn, "Failed to execute command: {}", cmd);
+  return false;
+}
+
+/**
+ * @brief 设置 FDB 条目
+ *
+ * @param mac MAC 地址
+ * @param underlay_addr 底层地址
+ * @param dev 网络接口名称
+ * @param add 增加路由（true），删除路由（false）
+ * @param netns 网络空间名称（可以为空）
+ * @return true 设置成功
+ * @return false 设置失败
+ */
+auto NetlinkIpCmd::fdbSetEntry(std::string_view mac, std::string_view underlay_addr,
+                               std::string_view dev, bool add, std::string_view netns) const
+    -> bool {
+  OHNO_ASSERT(!mac.empty());
+  OHNO_ASSERT(!underlay_addr.empty());
+  OHNO_ASSERT(!dev.empty());
+  std::string action = add ? "add" : "del";
+  std::string cmd = addNetns(
+      fmt::format("bridge fdb {} {} dev {} dst {}", action, mac, dev, underlay_addr), netns);
+  return executeCommand(cmd, "Failed to {} FDB entry({} dev {} dst {})", action, mac, dev,
+                        underlay_addr);
 }
 
 /**

@@ -6,6 +6,8 @@
 #include <string_view>
 #include "macro.h"
 #include "addr_if.h"
+#include "fdb_if.h"
+#include "neigh_if.h"
 #include "route_if.h"
 #include "src/net/netlink/netlink_if.h"
 // clang-format on
@@ -29,11 +31,18 @@ public:
   virtual auto addAddr(std::unique_ptr<AddrIf> addr) -> bool = 0;
   virtual auto delAddr(std::string_view cidr) -> bool = 0;
   virtual auto getAddr(std::string_view cidr = {}) const -> const AddrIf * = 0;
-  virtual auto addRoute(std::unique_ptr<RouteIf> route) -> bool = 0;
+  virtual auto addRoute(std::unique_ptr<RouteIf> route, NetlinkIf::RouteNHFlags nhflags)
+      -> bool = 0;
   virtual auto delRoute(std::string_view dst, std::string_view via, std::string_view dev)
       -> bool = 0;
   virtual auto getRoute(std::string_view dst, std::string_view via, std::string_view dev) const
       -> const RouteIf * = 0;
+  virtual auto addNeigh(std::unique_ptr<NeighIf> neigh) -> bool = 0;
+  virtual auto delNeigh(std::string_view addr, std::string_view mac, std::string_view dev)
+      -> bool = 0;
+  virtual auto addFdb(std::unique_ptr<FdbIf> fdb) -> bool = 0;
+  virtual auto delFdb(std::string_view addr, std::string_view mac, std::string_view dev)
+      -> bool = 0;
 };
 
 } // namespace net

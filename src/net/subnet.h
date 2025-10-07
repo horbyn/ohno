@@ -15,6 +15,7 @@ public:
   auto init(std::string_view cidr) -> void override;
   auto getSubnet() const -> std::string override;
   auto getPrefix() const -> Prefix override;
+  auto extractAddr() const -> std::string override;
   auto generateIp(Prefix index) -> std::string override;
   auto isSubnetOf(std::string_view cidr) const -> bool override;
 

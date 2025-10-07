@@ -15,10 +15,13 @@
 #include "src/ipam/node.h"
 #include "src/net/addr.h"
 #include "src/net/bridge.h"
+#include "src/net/mac.h"
+#include "src/net/macro.h"
 #include "src/net/route.h"
 #include "src/net/subnet.h"
 #include "src/net/underlay.hpp"
 #include "src/net/veth.h"
+#include "src/net/vxlan.h"
 #include "src/net/netlink/netlink_ip_cmd.h"
 #include "src/util/shell_sync.h"
 // clang-format on
@@ -289,10 +292,11 @@ auto Cni::del(std::string_view container_id, std::string_view nic_name) noexcept
     if (node->getNetnsSize() == 1) {
       // 算上宿主机的 root namespace，数量为 1 说明节点刚才删除了最后一个 pod
 
-      // 删除节点 root namespace bridge
+      // 删除节点 root namespace
       auto host = Cni::getKubernetesPod(node, ipam::HOST);
       if (host) {
         delKubernetesNic(host, conf_.bridge_);
+        delKubernetesNic(host, net::NAME_VXLAN);
         delKubernetesNic(host, node_underlay_dev_);
         delKubernetesPod(node, ipam::HOST);
       }
@@ -452,7 +456,8 @@ auto Cni::getKubernetesCluster(const std::weak_ptr<net::NetlinkIf> &netlink)
       auto routes = storage_->getAllRoutes(node_name_, pod, nic);
       for (const auto &route : routes) {
         nic_obj->addRoute(
-            std::make_unique<net::Route>(route->getDest(), route->getVia(), route->getDev()));
+            std::make_unique<net::Route>(route->getDest(), route->getVia(), route->getDev()),
+            net::NetlinkIf::RouteNHFlags::NONE);
       }
 
       pod_obj->addNic(nic_obj);
@@ -502,18 +507,71 @@ auto Cni::getBridge(const std::weak_ptr<net::NetlinkIf> &netlink, std::string_vi
 }
 
 /**
+ * @brief 获取 vxlan 网卡
+ *
+ * @param netlink Netlink 对象
+ * @param node_subnet 节点子网
+ * @return std::shared_ptr<net::NicIf> 网卡对象
+ */
+auto Cni::getVxlan(const std::weak_ptr<net::NetlinkIf> &netlink, std::string_view node_subnet)
+    -> std::shared_ptr<net::NicIf> {
+  // 为节点 root namespace 创建 Linux bridge，它的地址是一个逻辑上的地址（实际无效的）
+  auto vxlan = std::make_shared<net::Vxlan>(node_underlay_addr_, node_underlay_dev_);
+  if (!storage_->addNic(node_name_, ipam::HOST, net::NAME_VXLAN)) {
+    throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, fmt::format("Failed to store vxlan:{} on node:{}",
+                                                         net::NAME_VXLAN, node_name_));
+  }
+  vxlan->setName(net::NAME_VXLAN);
+  if (!vxlan->setup(netlink)) {
+    throw OHNO_CNIERR(7,
+                      fmt::format("Failed to create Kubernetes node:{} vxlan object", node_name_));
+  }
+
+  net::Subnet subnet{};
+  subnet.init(node_subnet);
+  auto vxlan_addr = subnet.extractAddr();
+  if (vxlan->addAddr(std::make_unique<net::Addr>(vxlan_addr))) {
+    if (!storage_->addAddr(node_name_, ipam::HOST, net::NAME_VXLAN,
+                           std::make_unique<net::Addr>(vxlan_addr))) {
+      throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
+                        fmt::format("Failed to store vxlan:{} on node:{}", vxlan_addr, node_name_));
+    }
+  }
+  if (!vxlan->setStatus(net::LinkStatus::UP)) {
+    OHNO_LOG(warn, "Failed to open vxlan:{} in root namespace", net::NAME_VXLAN);
+  }
+  net::Mac vxlan_nic{net::NAME_VXLAN};
+  auto vxlan_mac = vxlan_nic.getMac();
+  if (vxlan_mac.empty()) {
+    throw OHNO_CNIERR(
+        7, fmt::format("Failed to get vxlan:{} mac on node:{}", net::NAME_VXLAN, node_name_));
+  }
+  if (!storage_->addVtep(node_name_, vxlan_addr, vxlan_mac)) {
+    throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
+                      fmt::format("Failed to store vxlan:{} addr:{} mac:{} on node:{}",
+                                  net::NAME_VXLAN, vxlan_addr, vxlan_mac, node_name_));
+  }
+  return vxlan;
+}
+
+/**
  * @brief 获取 root namespace
  *
  * @param node Kubernetes 节点对象
  * @param bridge Linux bridge 对象
+ * @param vxlan Linux vxlan 网卡对象
  * @param underlay_nic underlay 网卡对象
  */
 auto Cni::getRootPod(const std::shared_ptr<ipam::NodeIf> &node,
                      const std::shared_ptr<net::NicIf> &bridge,
+                     const std::shared_ptr<net::NicIf> &vxlan,
                      const std::shared_ptr<net::NicIf> &underlay_nic) -> void {
 
   auto host = std::make_shared<ipam::Netns>();
   host->addNic(bridge);
+  if (ipam_mode_ == cni::CniConfigIpam::Mode::vxlan) {
+    host->addNic(vxlan);
+  }
   host->addNic(underlay_nic);
   host->setName(ipam::HOST);
   node->addNetns(ipam::HOST, host); // Kubernetes 节点第一个 namespace 就是宿主机的 root
@@ -549,17 +607,11 @@ auto Cni::getKubernetesNode(bool get_and_create, const std::weak_ptr<net::Netlin
 
       // 为节点分配子网
       std::string node_subnet{};
-      switch (ipam_mode_) {
-      case CniConfigIpam::Mode::vxlan: // VxLAN 所有节点的所有 Pod 都共享同一个子网
-        node_subnet = conf_.ipam_.subnet_;
-        break;
-      default: // host-gw 所有节点的 Pod 都有独立的子网
-        if (!ipam_->allocateSubnet(node_name_, center_.get(), node_subnet)) {
-          throw OHNO_CNIERR(7, fmt::format("Failed to allocate subnet for node:{}", node_name_));
-        }
-        break;
+      if (!ipam_->allocateSubnet(node_name_, center_.get(), node_subnet)) {
+        throw OHNO_CNIERR(7, fmt::format("Failed to allocate subnet for node:{}", node_name_));
       }
 
+      // 创建 bridge
       std::string gateway{};
       if (!ipam_->allocateIp(node_name_, gateway)) {
         throw OHNO_CNIERR(
@@ -568,6 +620,12 @@ auto Cni::getKubernetesNode(bool get_and_create, const std::weak_ptr<net::Netlin
       }
       gateway_.reset(new net::Addr{gateway});
       auto bridge = getBridge(netlink, gateway);
+
+      // 创建 vxlan
+      std::shared_ptr<net::NicIf> vxlan{};
+      if (ipam_mode_ == cni::CniConfigIpam::Mode::vxlan) {
+        vxlan = getVxlan(netlink, node_subnet);
+      }
 
       // 还要创建一个 underlay 网卡负责添加静态路由
       auto underlay_nic = std::make_shared<net::Underlay>();
@@ -578,7 +636,7 @@ auto Cni::getKubernetesNode(bool get_and_create, const std::weak_ptr<net::Netlin
       }
       underlay_nic->setName(node_underlay_dev_);
 
-      getRootPod(node, bridge, underlay_nic);
+      getRootPod(node, bridge, vxlan, underlay_nic);
 
       initKubernetesNode(node, node_subnet);
       cluster_->addNode(node_name_, node);
@@ -702,7 +760,8 @@ auto Cni::configPodNetwork(const std::shared_ptr<net::NicIf> &nic, std::string_v
   }
 
   auto route_via = gateway_->getAddr();
-  if (!nic->addRoute(std::make_unique<net::Route>(std::string_view{}, route_via, nic_name))) {
+  if (!nic->addRoute(std::make_unique<net::Route>(std::string_view{}, route_via, nic_name),
+                     net::NetlinkIf::RouteNHFlags::NONE)) {
     throw OHNO_CNIERR(
         7,
         fmt::format("Failed to add default route:{dest:default, via:{}, dev:{}} to veth on node:{}",
@@ -829,6 +888,12 @@ auto Cni::delKubernetesNic(const std::shared_ptr<ipam::NetnsIf> &pod, std::strin
     if (!storage_->delNic(node_name_, pod_name, nic_name)) {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
                         fmt::format("Failed to delete nic:{} on node:{}", nic_name, node_name_));
+    }
+    if (ipam_mode_ == cni::CniConfigIpam::Mode::vxlan) {
+      if (!storage_->delVtep(node_name_)) {
+        throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO,
+                          fmt::format("Failed to delete vtep on node:{}", node_name_));
+      }
     }
     pod->delNic(nic_name);
   }

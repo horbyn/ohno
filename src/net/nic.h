@@ -24,10 +24,14 @@ public:
   auto addAddr(std::unique_ptr<AddrIf> addr) -> bool override;
   auto delAddr(std::string_view cidr) -> bool override;
   auto getAddr(std::string_view cidr = {}) const -> const AddrIf * override;
-  auto addRoute(std::unique_ptr<RouteIf> route) -> bool override;
+  auto addRoute(std::unique_ptr<RouteIf> route, NetlinkIf::RouteNHFlags nhflags) -> bool override;
   auto delRoute(std::string_view dst, std::string_view via, std::string_view dev) -> bool override;
   auto getRoute(std::string_view dst, std::string_view via, std::string_view dev) const
       -> const RouteIf * override;
+  auto addNeigh(std::unique_ptr<NeighIf> neigh) -> bool override;
+  auto delNeigh(std::string_view addr, std::string_view mac, std::string_view dev) -> bool override;
+  auto addFdb(std::unique_ptr<FdbIf> fdb) -> bool override;
+  auto delFdb(std::string_view addr, std::string_view mac, std::string_view dev) -> bool override;
 
   enum class Type : uint8_t { SYS, USER };
   auto getType() const noexcept -> Type;
@@ -48,6 +52,8 @@ private:
 
   std::vector<std::unique_ptr<AddrIf>> addrs_;
   std::vector<std::unique_ptr<RouteIf>> routes_;
+  std::vector<std::unique_ptr<NeighIf>> neighs_;
+  std::vector<std::unique_ptr<FdbIf>> fdbs_;
 };
 
 } // namespace net

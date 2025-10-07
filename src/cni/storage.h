@@ -46,6 +46,11 @@ public:
   auto getAllRoutes(std::string_view node_name, std::string_view pod_name,
                     std::string_view nic_name) const
       -> std::vector<std::unique_ptr<net::RouteIf>> override;
+  auto addVtep(std::string_view node_name, std::string_view vtep_addr, std::string_view vtep_mac)
+      -> bool override;
+  auto delVtep(std::string_view node_name) -> bool override;
+  auto getVtep(std::string_view node_name, std::string &vtep_addr, std::string &vtep_mac) const
+      -> void override;
 
 private:
   static auto getNetnsKey(std::string_view node_name, std::string_view pod_name) -> std::string;
@@ -59,6 +64,8 @@ private:
                           std::string_view nic_name) -> std::string;
   static auto getRouteValue(std::string_view dest, std::string_view via, std::string_view dev)
       -> std::string;
+  static auto getVtepKey(std::string_view node_name) -> std::string;
+  static auto getVtepValue(std::string_view vtep_addr, std::string_view vtep_mac) -> std::string;
 
   std::unique_ptr<etcd::EtcdClientIf> etcd_client_;
 };

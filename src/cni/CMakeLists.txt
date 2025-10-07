@@ -6,4 +6,5 @@ add_library(ohno_cni
 target_link_libraries(ohno_cni
   PRIVATE
   ohno_helper
+  ohno_net
 )

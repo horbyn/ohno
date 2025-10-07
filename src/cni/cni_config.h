@@ -19,7 +19,6 @@ constexpr std::string_view JKEY_CNI_CC_TYPE{"type"};
 constexpr std::string_view JKEY_CNI_CC_BRIDGE{"bridge"};
 constexpr std::string_view JKEY_CNI_CC_LOG{"log"};
 constexpr std::string_view JKEY_CNI_CC_LOGLEVEL{"logLevel"};
-constexpr std::string_view JKEY_CNI_CC_SUBNET_PREFIX{"subnetPrefix"};
 constexpr std::string_view JKEY_CNI_CC_SSL{"ssl"};
 constexpr std::string_view JKEY_CNI_CC_IPAM{"ipam"};
 
@@ -28,7 +27,6 @@ constexpr std::string_view DEFAULT_CONF_NETNAME{"mynet"};
 constexpr std::string_view DEFAULT_CONF_PLUGINS_NAME{"ohno"};
 constexpr std::string_view DEFAULT_CONF_PLUGINS_BRIDGE{"ohnobr"};
 constexpr std::string_view DEFAULT_CONF_IPAM_SUBNET{"10.244.0.0/16"};
-constexpr int DEFAULT_CONF_PLUGINS_SUBNET_PREFIX{24};
 
 class CniConfigIpam final {
 public:
@@ -37,7 +35,7 @@ public:
   friend void to_json(nlohmann::json &json, const CniConfigIpam &ipam);
 
   std::string subnet_{std::string{DEFAULT_CONF_IPAM_SUBNET}};
-  Mode mode_{Mode::host_gw};
+  Mode mode_{Mode::vxlan};
 };
 
 class CniConfig final {
@@ -49,10 +47,9 @@ public:
   std::string name_{std::string{DEFAULT_CONF_NETNAME}};
   std::string type_{std::string{DEFAULT_CONF_PLUGINS_NAME}};
   std::string bridge_{std::string{DEFAULT_CONF_PLUGINS_BRIDGE}};
-  std::string log_{log::LOGFILE_DEFAULT};                 // 没错，我非常需要日志
-  log::Level loglevel_{log::Level::debug};                // 还有日志等级
-  int subnet_prefix_{DEFAULT_CONF_PLUGINS_SUBNET_PREFIX}; // 每个节点上要划分的 Pod 子网由用户定义
-  bool ssl_{true};                                        // 是否需要加密通信
+  std::string log_{log::LOGFILE_DEFAULT};  // 没错，我非常需要日志
+  log::Level loglevel_{log::Level::debug}; // 还有日志等级
+  bool ssl_{true};                         // 是否需要加密通信
   CniConfigIpam ipam_;
 };
 

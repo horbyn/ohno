@@ -419,6 +419,75 @@ auto Storage::getAllRoutes(std::string_view node_name, std::string_view pod_name
 }
 
 /**
+ * @brief 增加一个 VTEP 持久化
+ *
+ * @param node_name 节点名称
+ * @param vtep_addr VTEP 地址
+ * @param vtep_mac VTEP MAC 地址
+ * @return true 成功
+ * @return false 失败
+ */
+auto Storage::addVtep(std::string_view node_name, std::string_view vtep_addr,
+                      std::string_view vtep_mac) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(!vtep_addr.empty());
+  OHNO_ASSERT(!vtep_mac.empty());
+  OHNO_ASSERT(etcd_client_);
+
+  auto key = Storage::getVtepKey(node_name);
+  auto value = Storage::getVtepValue(vtep_addr, vtep_mac);
+  if (etcd_client_->put(key, value)) {
+    OHNO_LOG(trace, "Storage add VTEP:{} of Kubernetes node:{}", value, node_name);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @brief 删除一个 VTEP 持久化
+ *
+ * @param node_name 节点名称
+ * @return true 成功
+ * @return false 失败
+ */
+auto Storage::delVtep(std::string_view node_name) -> bool {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(etcd_client_);
+  if (etcd_client_->del(Storage::getVtepKey(node_name))) {
+    OHNO_LOG(trace, "Storage del VTEP of Kubernetes node:{}", node_name);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @brief 获取 VTEP 持久化
+ *
+ * @param node_name 节点名称
+ * @param vtep_addr VTEP 地址
+ * @param vtep_mac VTEP MAC 地址
+ */
+auto Storage::getVtep(std::string_view node_name, std::string &vtep_addr,
+                      std::string &vtep_mac) const -> void {
+  OHNO_ASSERT(!node_name.empty());
+  OHNO_ASSERT(etcd_client_);
+
+  vtep_addr.clear();
+  vtep_mac.clear();
+
+  std::string ret{};
+  auto key = Storage::getVtepKey(node_name);
+  if (etcd_client_->get(key, ret)) {
+    auto array = helper::split(ret, SEPARATOR); // 0:addr, 1:mac
+    if (!array.empty()) {
+      OHNO_ASSERT(array.size() == 2);
+      vtep_addr = array[0];
+      vtep_mac = array[1];
+    }
+  }
+}
+
+/**
  * @brief 获取持久化网络空间 key
  *
  * @param node_name Kubernetes 节点名称
@@ -519,6 +588,32 @@ auto Storage::getRouteValue(std::string_view dest, std::string_view via, std::st
 
   // 路由格式为 dest-via-dev，中间用短横杠连接
   return fmt::format("{}{}{}{}{}", dest, SEPARATOR, via, SEPARATOR, dev);
+}
+
+/**
+ * @brief 获取 VTEP key
+ *
+ * @param node_name 节点名称
+ * @return std::string ETCD key
+ */
+auto Storage::getVtepKey(std::string_view node_name) -> std::string {
+  OHNO_ASSERT(!node_name.empty());
+
+  return fmt::format("{}/{}/vtep", ETCD_KEY_PREFIX_NODE, node_name);
+}
+
+/**
+ * @brief 获取 VTEP value
+ *
+ * @param vtep_addr vtep IP 地址
+ * @param vtep_mac vtep MAC 地址
+ * @return std::string ETCD value
+ */
+auto Storage::getVtepValue(std::string_view vtep_addr, std::string_view vtep_mac) -> std::string {
+  OHNO_ASSERT(!vtep_addr.empty());
+  OHNO_ASSERT(!vtep_mac.empty());
+
+  return fmt::format("{}{}{}", vtep_addr, SEPARATOR, vtep_mac);
 }
 
 } // namespace cni

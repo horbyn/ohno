@@ -20,6 +20,10 @@ public:
               (override));
   MOCK_METHOD(bool, vethCreate, (std::string_view name1, std::string_view name2), (override));
   MOCK_METHOD(bool, bridgeCreate, (std::string_view name), (override));
+  MOCK_METHOD(bool, vxlanCreate,
+              (std::string_view name, std::string_view underlay_addr,
+               std::string_view underlay_dev),
+              (override));
   MOCK_METHOD(bool, bridgeSetStatus,
               (std::string_view name, bool master, std::string_view bridge, std::string_view netns),
               (override));
@@ -34,6 +38,21 @@ public:
               (const, override));
   MOCK_METHOD(bool, routeSetEntry,
               (std::string_view dst, std::string_view via, bool add, std::string_view dev,
+               std::string_view netns, RouteNHFlags nhflags),
+              (const, override));
+  MOCK_METHOD(bool, neighIsExist,
+              (std::string_view addr, std::string_view dev, std::string_view netns),
+              (const, override));
+  MOCK_METHOD(bool, neighSetEntry,
+              (std::string_view addr, std::string_view mac, bool add, std::string_view dev,
+               std::string_view netns),
+              (const, override));
+  MOCK_METHOD(bool, fdbIsExist,
+              (std::string_view mac, std::string_view underlay_addr, std::string_view dev,
+               std::string_view netns),
+              (const, override));
+  MOCK_METHOD(bool, fdbSetEntry,
+              (std::string_view mac, std::string_view underlay_addr, std::string_view dev, bool add,
                std::string_view netns),
               (const, override));
 };

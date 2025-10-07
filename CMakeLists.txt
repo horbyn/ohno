@@ -203,7 +203,6 @@ target_link_libraries(${PROJECT_NAME}_core INTERFACE
   ohno_common
   ohno_etcd
   ohno_helper
-  ohno_hostgw
   ohno_http_client
   ohno_ipam
   ohno_kube

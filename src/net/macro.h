@@ -20,5 +20,7 @@ constexpr std::string_view IPv6_REGEX{R"(^([\da-fA-F:]+)/(\d+)$)"};
 
 constexpr std::string_view PATH_NAMESPACE{"/var/run/netns"};
 
+constexpr std::string_view NAME_VXLAN{"ohnov"};
+
 } // namespace net
 } // namespace ohno

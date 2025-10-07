@@ -61,8 +61,6 @@ auto Bridge::setImpl(std::string_view nic_name, bool master) -> bool {
     if (ntl->bridgeSetStatus(nic_name, master, bridge_name, Nic::getNetns())) {
       return true;
     }
-
-    OHNO_LOG(warn, "failed to plug {} into bridge {}", nic_name, bridge_name);
   } else {
     OHNO_LOG(warn, "Failed to get Netlink from Bridge of {}", bridge_name);
   }

@@ -10,6 +10,8 @@ namespace net {
 
 class NetlinkIf {
 public:
+  enum class RouteNHFlags : uint8_t { NONE, onlink, pervasive };
+
   virtual ~NetlinkIf() = default;
   virtual auto linkDestory(std::string_view name, std::string_view netns = {}) -> bool = 0;
   virtual auto linkExist(std::string_view name, std::string_view netns = {}) -> bool = 0;
@@ -21,6 +23,8 @@ public:
                           std::string_view netns = {}) -> bool = 0;
   virtual auto vethCreate(std::string_view name1, std::string_view name2) -> bool = 0;
   virtual auto bridgeCreate(std::string_view name) -> bool = 0;
+  virtual auto vxlanCreate(std::string_view name, std::string_view underlay_addr,
+                           std::string_view underlay_dev) -> bool = 0;
   virtual auto bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
                                std::string_view netns = {}) -> bool = 0;
   virtual auto addressIsExist(std::string_view name, std::string_view addr,
@@ -30,7 +34,17 @@ public:
   virtual auto routeIsExist(std::string_view dst, std::string_view via, std::string_view dev = {},
                             std::string_view netns = {}) const -> bool = 0;
   virtual auto routeSetEntry(std::string_view dst, std::string_view via, bool add,
+                             std::string_view dev = {}, std::string_view netns = {},
+                             RouteNHFlags nhflags = RouteNHFlags::NONE) const -> bool = 0;
+  virtual auto neighIsExist(std::string_view addr, std::string_view dev = {},
+                            std::string_view netns = {}) const -> bool = 0;
+  virtual auto neighSetEntry(std::string_view addr, std::string_view mac, bool add,
                              std::string_view dev = {}, std::string_view netns = {}) const
+      -> bool = 0;
+  virtual auto fdbIsExist(std::string_view mac, std::string_view underlay_addr,
+                          std::string_view dev, std::string_view netns = {}) const -> bool = 0;
+  virtual auto fdbSetEntry(std::string_view mac, std::string_view underlay_addr,
+                           std::string_view dev, bool add, std::string_view netns = {}) const
       -> bool = 0;
 };
 

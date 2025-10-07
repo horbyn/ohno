@@ -15,7 +15,7 @@ namespace net {
  * @return false 设置失败
  */
 auto Nic::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
-  netlink_ = std::move(netlink);
+  netlink_ = netlink;
   return static_cast<bool>(netlink_.lock());
 }
 
@@ -166,7 +166,7 @@ auto Nic::getStatus() const noexcept -> bool { return status_ == LinkStatus::UP;
  * @return false 添加失败
  */
 auto Nic::addAddr(std::unique_ptr<AddrIf> addr) -> bool {
-  OHNO_ASSERT(addr);
+  OHNO_ASSERT(addr != nullptr);
   const auto name = getName();
   const auto addr_cidr = addr->getAddrCidr();
   const auto netns = getNetns();
@@ -241,11 +241,12 @@ auto Nic::getAddr(std::string_view cidr) const -> const AddrIf * {
  * @brief 向网络接口中添加一条路由，该路由写入系统配置中
  *
  * @param route 路由
+ * @param nhflags NH 标识
  * @return true 添加成功
  * @return false 添加失败
  */
-auto Nic::addRoute(std::unique_ptr<RouteIf> route) -> bool {
-  OHNO_ASSERT(route);
+auto Nic::addRoute(std::unique_ptr<RouteIf> route, NetlinkIf::RouteNHFlags nhflags) -> bool {
+  OHNO_ASSERT(route != nullptr);
   const auto dest = route->getDest();
   const auto via = route->getVia();
   const auto dev = route->getDev();
@@ -253,7 +254,7 @@ auto Nic::addRoute(std::unique_ptr<RouteIf> route) -> bool {
   if (auto ntl = netlink_.lock()) {
     auto netns = getNetns();
     if (!ntl->routeIsExist(dest, via, dev, netns)) {
-      if (!ntl->routeSetEntry(dest, via, true, dev, netns)) {
+      if (!ntl->routeSetEntry(dest, via, true, dev, netns, nhflags)) {
         return false;
       }
     }
@@ -277,8 +278,9 @@ auto Nic::delRoute(std::string_view dst, std::string_view via, std::string_view 
   OHNO_ASSERT(!via.empty());
 
   if (auto ntl = netlink_.lock()) {
-    if (ntl->routeIsExist(dst, via, dev, getNetns())) {
-      if (!ntl->routeSetEntry(dst, via, false, dev, getNetns())) {
+    auto netns = getNetns();
+    if (ntl->routeIsExist(dst, via, dev, netns)) {
+      if (!ntl->routeSetEntry(dst, via, false, dev, netns)) {
         return false;
       }
       routes_.erase(std::remove_if(routes_.begin(), routes_.end(),
@@ -320,6 +322,136 @@ auto Nic::getRoute(std::string_view dst, std::string_view via, std::string_view 
   return nullptr;
 }
 
+/**
+ * @brief 向网络接口中添加一条 ARP 缓存，并写入系统配置中
+ *
+ * @param neigh ARP 缓存对象
+ * @return true 添加成功
+ * @return false 添加失败
+ */
+auto Nic::addNeigh(std::unique_ptr<NeighIf> neigh) -> bool {
+  OHNO_ASSERT(neigh != nullptr);
+  const auto addr = neigh->getAddr();
+  OHNO_ASSERT(!addr.empty());
+  const auto mac = neigh->getMac();
+  OHNO_ASSERT(!mac.empty());
+  const auto dev = neigh->getDev();
+
+  if (auto ntl = netlink_.lock()) {
+    auto netns = getNetns();
+    if (!ntl->neighIsExist(addr, dev, netns)) {
+      if (!ntl->neighSetEntry(addr, mac, true, dev, netns)) {
+        return false;
+      }
+    }
+    neighs_.emplace_back(std::move(neigh));
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief 从网络接口中删除一条 ARP 缓存，并从系统配置中删除
+ *
+ * @param addr ARP 缓存的三层地址
+ * @param mac ARP 缓存的 MAC 地址
+ * @param dev ARP 缓存的设备出口
+ * @return true 删除成功
+ * @return false 删除失败
+ */
+auto Nic::delNeigh(std::string_view addr, std::string_view mac, std::string_view dev) -> bool {
+  OHNO_ASSERT(!addr.empty());
+  OHNO_ASSERT(!mac.empty());
+
+  if (auto ntl = netlink_.lock()) {
+    auto netns = getNetns();
+    if (ntl->neighIsExist(addr, dev, netns)) {
+      if (!ntl->neighSetEntry(addr, mac, false, dev, netns)) {
+        return false;
+      }
+      neighs_.erase(std::remove_if(neighs_.begin(), neighs_.end(),
+                                   [addr, mac, dev](const auto &neigh) {
+                                     return neigh->getAddr() == std::string{addr} &&
+                                            neigh->getMac() == std::string{mac} &&
+                                            neigh->getDev() == std::string{dev};
+                                   }),
+                    neighs_.end());
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief 向网络接口中添加一条 FDB 表项，并写入系统配置中
+ *
+ * @param fdb FDB 对象
+ * @return true 添加成功
+ * @return false 添加失败
+ */
+auto Nic::addFdb(std::unique_ptr<FdbIf> fdb) -> bool {
+  OHNO_ASSERT(fdb != nullptr);
+  const auto mac = fdb->getMac();
+  OHNO_ASSERT(!mac.empty());
+  const auto addr = fdb->getUnderlayAddr();
+  OHNO_ASSERT(!addr.empty());
+  const auto dev = fdb->getDev();
+  OHNO_ASSERT(!dev.empty());
+
+  if (auto ntl = netlink_.lock()) {
+    auto netns = getNetns();
+    if (!ntl->fdbIsExist(mac, addr, dev, netns)) {
+      if (!ntl->fdbSetEntry(mac, addr, dev, true, netns)) {
+        return false;
+      }
+    }
+    fdbs_.emplace_back(std::move(fdb));
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief 从网络接口中删除一条 FDB 表项，并从系统配置中删除
+ *
+ * @param addr FDB 表项的 underlay 地址
+ * @param mac FDB 表项的 MAC 地址
+ * @param dev FDB 表项的出口设备
+ * @return true 删除成功
+ * @return false 删除失败
+ */
+auto Nic::delFdb(std::string_view addr, std::string_view mac, std::string_view dev) -> bool {
+  OHNO_ASSERT(!addr.empty());
+  OHNO_ASSERT(!mac.empty());
+  OHNO_ASSERT(!dev.empty());
+
+  if (auto ntl = netlink_.lock()) {
+    auto netns = getNetns();
+    if (ntl->fdbIsExist(mac, addr, dev, netns)) {
+      if (!ntl->fdbSetEntry(mac, addr, dev, false, netns)) {
+        return false;
+      }
+      fdbs_.erase(std::remove_if(fdbs_.begin(), fdbs_.end(),
+                                 [addr, mac, dev](const auto &fdb) {
+                                   return fdb->getMac() == std::string{mac} &&
+                                          fdb->getUnderlayAddr() == std::string{addr};
+                                 }),
+                  fdbs_.end());
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief 获取网卡类型
+ *
+ * @return Type 类型
+ */
 auto Nic::getType() const noexcept -> Type { return type_; }
 
 /**

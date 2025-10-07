@@ -45,6 +45,11 @@ public:
   virtual auto getAllRoutes(std::string_view node_name, std::string_view pod_name,
                             std::string_view nic_name) const
       -> std::vector<std::unique_ptr<net::RouteIf>> = 0;
+  virtual auto addVtep(std::string_view node_name, std::string_view vtep_addr,
+                       std::string_view vtep_mac) -> bool = 0;
+  virtual auto delVtep(std::string_view node_name) -> bool = 0;
+  virtual auto getVtep(std::string_view node_name, std::string &vtep_addr,
+                       std::string &vtep_mac) const -> void = 0;
 };
 
 } // namespace cni

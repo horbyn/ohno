@@ -61,6 +61,21 @@ auto Subnet::getPrefix() const -> Prefix {
 }
 
 /**
+ * @brief 提取不带前缀的子网地址
+ *
+ * @return std::string 子网地址
+ */
+auto Subnet::extractAddr() const -> std::string {
+  checkIpv6();
+  auto cidr = getSubnet();
+  size_t slash_pos = cidr.find('/');
+  if (slash_pos != std::string::npos) {
+    return cidr.substr(0, slash_pos);
+  }
+  return cidr;
+}
+
+/**
  * @brief 从当前子网中生成一个 IP 地址，出错抛出 ohno::except::Exception
  *
  * @param index 生成 IP 的依据
