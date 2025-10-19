@@ -30,12 +30,12 @@ constexpr std::string_view DEFAULT_CONF_IPAM_SUBNET{"10.244.0.0/16"};
 
 class CniConfigIpam final {
 public:
-  enum class Mode : uint8_t { RESERVED, host_gw, vxlan };
+  enum class Mode : uint8_t { RESERVED, host_gw, vxlan, evpn };
   friend void from_json(const nlohmann::json &json, CniConfigIpam &ipam);
   friend void to_json(nlohmann::json &json, const CniConfigIpam &ipam);
 
   std::string subnet_{std::string{DEFAULT_CONF_IPAM_SUBNET}};
-  Mode mode_{Mode::vxlan};
+  Mode mode_{Mode::evpn};
 };
 
 class CniConfig final {

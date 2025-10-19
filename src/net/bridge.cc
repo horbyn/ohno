@@ -33,32 +33,39 @@ auto Bridge::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
  * @brief 将网络接口插入 Linux bridge
  *
  * @param nic_name 网络接口名称
+ * @param mode 地址生成模式
  * @return true 插入成功
  * @return false 插入失败
  */
-auto Bridge::setMaster(std::string_view nic_name) -> bool { return setImpl(nic_name, true); }
+auto Bridge::setMaster(std::string_view nic_name, BridgeAddrGenMode mode) -> bool {
+  return setImpl(nic_name, true, mode);
+}
 
 /**
  * @brief 将网络接口从 Linux bridge 中拔出
  *
  * @param nic_name 网络接口名称
+ * @param mode 地址生成模式
  * @return true 拔出成功
  * @return false 拔出失败
  */
-auto Bridge::setNoMaster(std::string_view nic_name) -> bool { return setImpl(nic_name, false); }
+auto Bridge::setNoMaster(std::string_view nic_name, BridgeAddrGenMode mode) -> bool {
+  return setImpl(nic_name, false, mode);
+}
 
 /**
  * @brief 向 Linux bridge 中插拔网络接口
  *
  * @param nic_name 网络接口名称
  * @param master 插入（true），拔出（false）
+ * @param mode 地址生成模式
  * @return true 操作成功
  * @return false 操作失败
  */
-auto Bridge::setImpl(std::string_view nic_name, bool master) -> bool {
+auto Bridge::setImpl(std::string_view nic_name, bool master, BridgeAddrGenMode mode) -> bool {
   auto bridge_name = Nic::getName();
   if (auto ntl = Nic::netlink_.lock()) {
-    if (ntl->bridgeSetStatus(nic_name, master, bridge_name, Nic::getNetns())) {
+    if (ntl->bridgeSetStatus(nic_name, master, bridge_name, mode, Nic::getNetns())) {
       return true;
     }
   } else {

@@ -12,6 +12,10 @@
 namespace ohno {
 namespace backend {
 
+constexpr std::string_view BGP_EVPN_VRF{"ohnovrf"};
+constexpr std::string_view BGP_EVPN_BR{"ohnol3svi"};
+constexpr std::string_view BGP_EVPN_VTEP{"ohnol3vni"};
+
 class StrategyClient final : public log::Loggable<log::Id::backend> {
 public:
   auto setNetlink(std::weak_ptr<net::NetlinkIf> netlink) -> bool;
@@ -20,9 +24,11 @@ public:
   auto stopStrategy() -> void;
 
 private:
-  auto getStrategy(cni::CniConfigIpam::Mode mode) const -> std::unique_ptr<BackendIf>;
+  auto getStrategy(cni::CniConfigIpam::Mode mode, std::string_view l2svi) const
+      -> std::unique_ptr<BackendIf>;
   auto getHostgw() const -> std::unique_ptr<BackendIf>;
   auto getVxlan() const -> std::unique_ptr<BackendIf>;
+  auto getEvpn(std::string_view l2svi) const -> std::unique_ptr<BackendIf>;
 
   std::unique_ptr<SchedulerIf> scheduler_;
   std::shared_ptr<net::NetlinkIf> netlink_; // TODO: 外部对象必须一直存在, 但实际可能不会

@@ -127,3 +127,180 @@ spec:
             path: client.crt
           - key: client.key
             path: client.key
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rr
+  namespace: ohno
+  labels:
+    app: frr-rr
+spec:
+  selector:
+    matchLabels:
+      app: frr-rr
+  template:
+    metadata:
+      labels:
+        app: frr-rr
+    spec:
+      hostNetwork: true
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      containers:
+      - name: frr-rr
+        image: quay.io/frrouting/frr:8.4.5
+        securityContext:
+          privileged: true
+        command: 
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+          
+          echo "Configuring Spine Route Reflector with local segment: \"$SEGMENT\""
+          sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons
+          sed -i 's/bgpd_options="  -A 127.0.0.1"/bgpd_options="   -A 127.0.0.1 -f \/etc\/frr\/bgpd.conf"/' /etc/frr/daemons
+          cat > /etc/frr/vtysh.conf << EOF
+          no service integrated-vtysh-config
+          EOF
+
+          # 启动 FRR
+          /usr/lib/frr/frrinit.sh start
+          
+          # 应用 Spine 配置
+          vtysh -c "configure terminal" \
+            -c "router bgp 64512" \
+            -c " no bgp ebgp-requires-policy" \
+            -c " no bgp network import-check" \
+            -c " no bgp default ipv4-unicast" \
+            -c " neighbor fabric peer-group" \
+            -c " neighbor fabric remote-as internal" \
+            -c " bgp listen range $SEGMENT peer-group fabric" \
+            -c " address-family ipv4 unicast" \
+            -c "  neighbor fabric activate" \
+            -c "  neighbor fabric route-reflector-client" \
+            -c " exit-address-family" \
+            -c " address-family l2vpn evpn" \
+            -c "  neighbor fabric activate" \
+            -c "  neighbor fabric route-reflector-client" \
+            -c "  advertise-all-vni" \
+            -c "  advertise-svi-ip" \
+            -c " exit-address-family" \
+            -c "end" \
+            -c "write"
+          
+          echo "Spine Route Reflector configuration completed"
+          
+          # 保持容器运行
+          tail -f /dev/null
+          set +x
+      initContainers:
+      - name: sysctl
+        image: docker.io/library/busybox:latest
+        imagePullPolicy: IfNotPresent
+        command: ['sh', '-c', 'sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv6.conf.all.forwarding=1']
+        securityContext:
+          privileged: true
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: peer
+  namespace: ohno
+  labels:
+    app: frr-peer
+spec:
+  selector:
+    matchLabels:
+      app: frr-peer
+  template:
+    metadata:
+      labels:
+        app: frr-peer
+    spec:
+      hostNetwork: true
+      # Worker 节点没有污点，所以不需要 tolerations
+      # 使用亲和性选择非 Master 节点
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: DoesNotExist
+      containers:
+      - name: frr-peer
+        image: quay.io/frrouting/frr:8.4.5
+        securityContext:
+          privileged: true
+        command: 
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+
+          sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons
+          sed -i 's/bgpd_options="  -A 127.0.0.1"/bgpd_options="   -A 127.0.0.1 -f \/etc\/frr\/bgpd.conf"/' /etc/frr/daemons
+          cat > /etc/frr/vtysh.conf << EOF
+          no service integrated-vtysh-config
+          EOF
+
+          # 启动 FRR
+          /usr/lib/frr/frrinit.sh start
+          
+          # 等待网络就绪
+          sleep 5
+          
+          echo "Configuring Leaf BGP Peer with Spine IP: $SPINE_IP"
+          
+          # 应用 Leaf 配置
+          vtysh -c "configure terminal" \
+            -c "vrf ohnovrf" \
+            -c " vni 42" \
+            -c "exit-vrf" \
+            -c "router bgp 64512" \
+            -c " no bgp ebgp-requires-policy" \
+            -c " no bgp network import-check" \
+            -c " no bgp default ipv4-unicast" \
+            -c " neighbor $SPINE_IP remote-as internal" \
+            -c " neighbor $SPINE_IP allowas-in origin" \
+            -c " address-family ipv4 unicast" \
+            -c "  neighbor $SPINE_IP activate" \
+            -c " exit-address-family" \
+            -c " address-family l2vpn evpn" \
+            -c "  neighbor $SPINE_IP activate" \
+            -c "  neighbor $SPINE_IP allowas-in origin" \
+            -c "  advertise-all-vni" \
+            -c "  advertise-svi-ip" \
+            -c " exit-address-family" \
+            -c "router bgp 64512 vrf ohnovrf" \
+            -c " address-family ipv4 unicast" \
+            -c "  redistribute connected" \
+            -c " exit-address-family" \
+            -c " address-family ipv6 unicast" \
+            -c "  redistribute static" \
+            -c " exit-address-family" \
+            -c " address-family l2vpn evpn" \
+            -c "  advertise ipv4 unicast" \
+            -c "  advertise ipv6 unicast" \
+            -c " exit-address-family" \
+            -c "end" \
+            -c "write"
+          
+          echo "Leaf BGP Peer configuration completed"
+          
+          # 保持容器运行
+          tail -f /dev/null
+          set +x
+      initContainers:
+      - name: sysctl
+        image: docker.io/library/busybox:latest
+        imagePullPolicy: IfNotPresent
+        command: ['sh', '-c', 'sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv6.conf.all.forwarding=1']
+        securityContext:
+          privileged: true

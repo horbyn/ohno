@@ -169,6 +169,43 @@ auto Center::getApiServer(Type type, const util::EnvIf *env) -> std::string {
 }
 
 /**
+ * @brief 获取当前 Kubernetes 节点信息
+ *
+ * @param shell Shell 对象
+ * @param node_name 当前节点名称
+ * @param underlay_dev 当前节点 Underlay 网络设备
+ * @param underlay_addr 当前节点 Underlay 网络地址
+ * @return true 获取成功
+ * @return false 获取失败
+ */
+auto Center::getNodeInfo(const util::ShellIf *shell, std::string &node_name,
+                         std::string &underlay_dev, std::string &underlay_addr) -> bool {
+  OHNO_ASSERT(shell != nullptr);
+
+  auto ret = shell->execute("hostname", node_name);
+  if (!ret || node_name.empty()) {
+    OHNO_GLOBAL_LOG(critical, "Failed to get current Kubernetes node name");
+    return false;
+  }
+
+  ret = shell->execute("ip route show default | awk '/default/ {print $5}'", underlay_dev);
+  if (!ret || underlay_dev.empty()) {
+    OHNO_GLOBAL_LOG(critical, "Failed to get current Kubernetes underlay device");
+    return false;
+  }
+
+  ret = shell->execute(
+      fmt::format("ip addr show {} | grep 'inet ' | awk '{{print $2}}'", underlay_dev),
+      underlay_addr);
+  if (!ret || underlay_addr.empty()) {
+    OHNO_GLOBAL_LOG(critical, "Failed to get current Kubernetes underlay address");
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * @brief 获取 ssl 目录
  *
  * @param type 执行环境类型

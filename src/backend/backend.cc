@@ -56,8 +56,6 @@ auto Backend::setNic(std::unique_ptr<net::NicIf> nic) -> void { nic_ = std::move
  */
 auto Backend::startImpl(std::string_view node_name, std::string_view thread_name) -> void {
   OHNO_ASSERT(!node_name.empty());
-  OHNO_ASSERT(center_ != nullptr);
-  OHNO_ASSERT(nic_ != nullptr);
 
   if (running_) {
     return;

@@ -1,7 +1,9 @@
 // clang-format off
 #include "vxlan.h"
 #include "spdlog/fmt/fmt.h"
+#include "src/cni/cni_config.h"
 #include "src/common/assert.h"
+#include "src/common/enum_name.hpp"
 #include "src/common/except.h"
 #include "src/net/fdb.h"
 #include "src/net/macro.h"
@@ -17,7 +19,9 @@ namespace backend {
  *
  * @param node_name 当前 Kubernetes 节点名称
  */
-auto Vxlan::start(std::string_view node_name) -> void { Backend::startImpl(node_name, "vxlan"); }
+auto Vxlan::start(std::string_view node_name) -> void {
+  Backend::startImpl(node_name, enumName(cni::CniConfigIpam::Mode::vxlan));
+}
 
 /**
  * @brief 设置持久化对象
@@ -34,7 +38,9 @@ auto Vxlan::setStorage(std::unique_ptr<cni::StorageIf> storage) -> void {
  * @param current_node 当前 Kubernetes 节点名称
  */
 auto Vxlan::eventHandler(std::string_view current_node) -> void {
+  OHNO_ASSERT(center_ != nullptr);
   OHNO_ASSERT(storage_ != nullptr);
+  OHNO_ASSERT(nic_ != nullptr);
 
   // 集群是直接从 Kubernetes api server 中获取的，包含所有节点
   auto cluster = center_->getKubernetesData();

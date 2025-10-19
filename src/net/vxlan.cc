@@ -40,5 +40,25 @@ auto Vxlan::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
   return false;
 }
 
+/**
+ * @brief 设置 VTEP 桥接从接口属性
+ *
+ * @param neigh_suppress 启用（true）/ 禁用（false）邻居表抑制
+ * @param learning 启用（true）/ 禁用（false）地址学习
+ * @return true 成功
+ * @return false 失败
+ */
+auto Vxlan::setSlave(bool neigh_suppress, bool learning) const -> bool {
+  auto nic_name = Nic::getName();
+  if (auto ntl = Nic::netlink_.lock()) {
+    if (ntl->vxlanSetSlave(nic_name, neigh_suppress, learning, getNetns())) {
+      return true;
+    }
+  } else {
+    OHNO_LOG(warn, "Failed to get Netlink from Bridge of {}", nic_name);
+  }
+  return false;
+}
+
 } // namespace net
 } // namespace ohno

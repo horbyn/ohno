@@ -188,7 +188,6 @@ round-trip min/avg/max = 0.693/0.852/1.416 ms
 
 ## TODO
 
-- Daemon Set 路由模式：VxLAN、动态路由
 - `src/ipam/subnet.{h,cc}` 不支持 IPv6 子网计算
 - `src/netlink` 实现 C++ 对 Netlink 编程接口的封装
 - `src/util/env_std.{h,cc}` 使用的环境变量相关操作不是线程安全的

@@ -24,8 +24,13 @@ public:
               (std::string_view name, std::string_view underlay_addr,
                std::string_view underlay_dev),
               (override));
+  MOCK_METHOD(bool, vrfCreate, (std::string_view name, uint32_t table), (override));
   MOCK_METHOD(bool, bridgeSetStatus,
-              (std::string_view name, bool master, std::string_view bridge, std::string_view netns),
+              (std::string_view name, bool master, std::string_view bridge, BridgeAddrGenMode mode,
+               std::string_view netns),
+              (override));
+  MOCK_METHOD(bool, vxlanSetSlave,
+              (std::string_view name, bool neigh_suppress, bool learning, std::string_view netns),
               (override));
   MOCK_METHOD(bool, addressIsExist,
               (std::string_view name, std::string_view addr, std::string_view netns), (override));

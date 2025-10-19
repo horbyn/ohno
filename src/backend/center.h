@@ -6,6 +6,7 @@
 #include "src/log/logger.h"
 #include "src/net/http_client/http_client_if.h"
 #include "src/util/env_if.h"
+#include "src/util/shell_if.h"
 // clang-format on
 
 namespace ohno {
@@ -26,6 +27,8 @@ public:
 
   static auto getEtcdClusters() -> std::string;
   static auto getApiServer(Type type, const util::EnvIf *env) -> std::string;
+  static auto getNodeInfo(const util::ShellIf *shell, std::string &node_name,
+                          std::string &underlay_dev, std::string &underlay_addr) -> bool;
 
 private:
   static auto getSslDir(Type type, bool host_ca) -> std::string_view;

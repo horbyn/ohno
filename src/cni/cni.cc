@@ -165,7 +165,7 @@ auto Cni::add(std::string_view container_id, std::string_view netns, std::string
   }
 
   util::ShellSync shell{};
-  if (!getCurrentNodeInfo(&shell)) {
+  if (!backend::Center::getNodeInfo(&shell, node_name_, node_underlay_dev_, node_underlay_addr_)) {
     throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to get current node info");
   }
   cluster_ = getKubernetesCluster(netlink);
@@ -264,7 +264,8 @@ auto Cni::del(std::string_view container_id, std::string_view nic_name) noexcept
     }
 
     util::ShellSync shell{};
-    if (!getCurrentNodeInfo(&shell)) {
+    if (!backend::Center::getNodeInfo(&shell, node_name_, node_underlay_dev_,
+                                      node_underlay_addr_)) {
       throw OHNO_CNIERR(cni::CNI_ERRCODE_OHNO, "Failed to get current node info");
     }
 
@@ -323,39 +324,6 @@ auto Cni::version() const -> std::string {
   CniVersion ver{};
   ver.cni_version_ = conf_.cni_version_;
   return nlohmann::json(ver).dump(4);
-}
-
-/**
- * @brief 获取当前 Kubernetes 节点信息
- *
- * @param shell Shell 对象
- * @return true 获取成功
- * @return false 获取失败
- */
-auto Cni::getCurrentNodeInfo(const util::ShellIf *shell) -> bool {
-  OHNO_ASSERT(shell != nullptr);
-
-  auto ret = shell->execute("hostname", node_name_);
-  if (!ret || node_name_.empty()) {
-    OHNO_LOG(critical, "Failed to get current Kubernetes node name");
-    return false;
-  }
-
-  ret = shell->execute("ip route show default | awk '/default/ {print $5}'", node_underlay_dev_);
-  if (!ret || node_underlay_dev_.empty()) {
-    OHNO_LOG(critical, "Failed to get current Kubernetes underlay device");
-    return false;
-  }
-
-  ret = shell->execute(
-      fmt::format("ip addr show {} | grep 'inet ' | awk '{{print $2}}'", node_underlay_dev_),
-      node_underlay_addr_);
-  if (!ret || node_underlay_addr_.empty()) {
-    OHNO_LOG(critical, "Failed to get current Kubernetes underlay address");
-    return false;
-  }
-
-  return true;
 }
 
 /**
@@ -722,7 +690,7 @@ auto Cni::nicPluginBridge(std::string_view nic_name) -> void {
   if (!bridge_if) {
     throw OHNO_CNIERR(7, fmt::format("Failed to get bridge in host netns on node:{}", node_name_));
   }
-  if (!bridge_if->setMaster(nic_name)) {
+  if (!bridge_if->setMaster(nic_name, net::BridgeAddrGenMode::reserved)) {
     throw OHNO_CNIERR(7, fmt::format("Failed to set bridge master of veth on node:{}", node_name_));
   }
 }

@@ -156,22 +156,63 @@ auto NetlinkIpCmd::vxlanCreate(std::string_view name, std::string_view underlay_
 }
 
 /**
+ * @brief 创建 vrf
+ *
+ * @param name 网卡名称
+ * @param table 要绑定的路由表
+ * @return true 成功
+ * @return false 失败
+ */
+auto NetlinkIpCmd::vrfCreate(std::string_view name, uint32_t table) -> bool {
+  OHNO_ASSERT(!name.empty());
+  std::string cmd = fmt::format("ip link add name {} type vrf table {}", name, table);
+  return executeCommand(cmd, "Failed to create vrf {}", name);
+}
+
+/**
  * @brief 设置 Linux bridge 接口
  *
  * @param name 需要处理的网络接口
  * @param master 插入 bridge（true），从 bridge 拔出（false）
  * @param bridge Linux bridge 接口
+ * @param mode 地址生成模式
  * @param netns 网络空间名称（可以为空）
  * @return true 设置成功
  * @return false 设置失败
  */
 auto NetlinkIpCmd::bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
-                                   std::string_view netns) -> bool {
+                                   BridgeAddrGenMode mode, std::string_view netns) -> bool {
   OHNO_ASSERT(!name.empty());
   OHNO_ASSERT(!bridge.empty());
   std::string action = master ? "master" : "nomaster";
-  std::string cmd = addNetns(fmt::format("ip link set dev {} {} {}", name, action, bridge), netns);
+  std::string modo_str = mode == BridgeAddrGenMode::reserved
+                             ? std::string{}
+                             : fmt::format("addrgenmode {}", enumName(mode));
+  std::string cmd =
+      addNetns(fmt::format("ip link set dev {} {} {} {}", name, action, bridge, modo_str), netns);
   return executeCommand(cmd, "Failed to set {} of link({}) to bridge({})", action, name, bridge);
+}
+
+/**
+ * @brief 设置 VTEP 桥接从接口属性
+ *
+ * @param name VTEP 设备名称
+ * @param neigh_suppress 启用（true）/ 禁用（false）邻居表抑制
+ * @param learning 启用（true）/ 禁用（false）地址学习
+ * @param netns 网络空间名称（可以为空）
+ * @return true 成功
+ * @return false 失败
+ */
+auto NetlinkIpCmd::vxlanSetSlave(std::string_view name, bool neigh_suppress, bool learning,
+                                 std::string_view netns) -> bool {
+  OHNO_ASSERT(!name.empty());
+  std::string arp_suppress = neigh_suppress ? "on" : "off";
+  std::string learn = learning ? "on" : "off";
+  std::string cmd =
+      addNetns(fmt::format("ip link set {} type bridge_slave neigh_suppress {} learning {}", name,
+                           arp_suppress, learn),
+               netns);
+  return executeCommand(cmd, "Failed to set vxlan slave {}", name);
 }
 
 /**

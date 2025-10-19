@@ -8,6 +8,8 @@
 namespace ohno {
 namespace net {
 
+enum class BridgeAddrGenMode : uint8_t { reserved, none };
+
 class NetlinkIf {
 public:
   enum class RouteNHFlags : uint8_t { NONE, onlink, pervasive };
@@ -25,8 +27,11 @@ public:
   virtual auto bridgeCreate(std::string_view name) -> bool = 0;
   virtual auto vxlanCreate(std::string_view name, std::string_view underlay_addr,
                            std::string_view underlay_dev) -> bool = 0;
+  virtual auto vrfCreate(std::string_view name, uint32_t table) -> bool = 0;
   virtual auto bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
-                               std::string_view netns = {}) -> bool = 0;
+                               BridgeAddrGenMode mode, std::string_view netns = {}) -> bool = 0;
+  virtual auto vxlanSetSlave(std::string_view name, bool neigh_suppress, bool learning,
+                             std::string_view netns = {}) -> bool = 0;
   virtual auto addressIsExist(std::string_view name, std::string_view addr,
                               std::string_view netns = {}) -> bool = 0;
   virtual auto addressSetEntry(std::string_view name, std::string_view addr, bool add,

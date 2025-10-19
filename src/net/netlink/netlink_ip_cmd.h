@@ -29,8 +29,11 @@ public:
   auto bridgeCreate(std::string_view name) -> bool override;
   auto vxlanCreate(std::string_view name, std::string_view underlay_addr,
                    std::string_view underlay_dev) -> bool override;
+  auto vrfCreate(std::string_view name, uint32_t table) -> bool override;
   auto bridgeSetStatus(std::string_view name, bool master, std::string_view bridge,
-                       std::string_view netns = {}) -> bool override;
+                       BridgeAddrGenMode mode, std::string_view netns = {}) -> bool override;
+  auto vxlanSetSlave(std::string_view name, bool neigh_suppress, bool learning,
+                     std::string_view netns = {}) -> bool override;
   auto addressIsExist(std::string_view name, std::string_view addr, std::string_view netns = {})
       -> bool override;
   auto addressSetEntry(std::string_view name, std::string_view addr, bool add,

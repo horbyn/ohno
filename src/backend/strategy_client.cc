@@ -5,6 +5,7 @@
 #include "scheduler.h"
 #include "center.h"
 #include "src/backend/host_gw.h"
+#include "src/backend/evpn.h"
 #include "src/backend/vxlan.h"
 #include "src/common/assert.h"
 #include "src/cni/cni_config.h"
@@ -57,7 +58,7 @@ auto StrategyClient::executeStrategy(std::string_view node_name) -> void {
   scheduler_.reset(new Scheduler{});
   OHNO_ASSERT(scheduler_ != nullptr);
 
-  scheduler_->setStrategy(getStrategy(cni_conf.ipam_.mode_));
+  scheduler_->setStrategy(getStrategy(cni_conf.ipam_.mode_, cni_conf.bridge_));
   scheduler_->start(node_name);
 }
 
@@ -75,9 +76,10 @@ auto StrategyClient::stopStrategy() -> void {
  * @brief 获取策略对象
  *
  * @param mode 路由模式
+ * @param l2svi 二层 SVI
  * @return std::unique_ptr<BackendIf> 策略对象
  */
-auto StrategyClient::getStrategy(cni::CniConfigIpam::Mode mode) const
+auto StrategyClient::getStrategy(cni::CniConfigIpam::Mode mode, std::string_view l2svi) const
     -> std::unique_ptr<BackendIf> {
   OHNO_ASSERT(netlink_ != nullptr);
   OHNO_ASSERT(!bkinfo_.api_server_.empty());
@@ -93,6 +95,10 @@ auto StrategyClient::getStrategy(cni::CniConfigIpam::Mode mode) const
     strategy = getVxlan();
     OHNO_LOG(info, "Ohond vxlan mode init successfully!");
     break;
+  case cni::CniConfigIpam::Mode::evpn:
+    strategy = getEvpn(l2svi);
+    OHNO_LOG(info, "Ohond evpn mode init successfully!");
+    break;
   default:
     throw OHNO_EXCEPT("CNI configuration has invalid entry(ipam.mode)", false);
   }
@@ -102,7 +108,7 @@ auto StrategyClient::getStrategy(cni::CniConfigIpam::Mode mode) const
     throw OHNO_EXCEPT("Kubernetes api server is unhealthy", false);
   }
   auto nic = std::make_unique<net::Nic>();
-  if (!nic->setup(std::move(netlink_))) {
+  if (!nic->setup(netlink_)) {
     throw OHNO_EXCEPT("Failed to setup nic", false);
   }
   strategy->setInterval(bkinfo_.refresh_interval_);
@@ -145,6 +151,52 @@ auto StrategyClient::getVxlan() const -> std::unique_ptr<BackendIf> {
   auto vxlan = std::make_unique<Vxlan>();
   vxlan->setStorage(std::move(storage));
   return vxlan;
+}
+
+/**
+ * @brief 获取 BGP EVPN 对象
+ *
+ * @param l2svi 二层 SVI
+ * @return std::unique_ptr<BackendIf> 后端策略
+ */
+auto StrategyClient::getEvpn(std::string_view l2svi) const -> std::unique_ptr<BackendIf> {
+  OHNO_ASSERT(!l2svi.empty());
+  auto evpn = std::make_unique<Evpn>();
+
+  auto vrf = std::make_unique<net::Vrf>();
+  vrf->setName(BGP_EVPN_VRF);
+  if (!vrf->setup(netlink_)) {
+    throw OHNO_EXCEPT("Create Vrf device meets error: invalid Netlink", false);
+  }
+
+  auto bridge_l3 = std::make_unique<net::Bridge>();
+  bridge_l3->setName(BGP_EVPN_BR);
+  if (!bridge_l3->setup(netlink_)) {
+    throw OHNO_EXCEPT("Create L3 Bridge device meets error: invalid Netlink", false);
+  }
+
+  auto bridge_l2 = std::make_unique<net::Bridge>();
+  bridge_l2->setName(l2svi);
+  if (!bridge_l2->setup(netlink_)) {
+    throw OHNO_EXCEPT("Create L2 Bridge device meets error: invalid Netlink", false);
+  }
+
+  util::ShellSync shell{};
+  std::string node_name{}, underlay_dev{}, underlay_addr{};
+  if (!Center::getNodeInfo(&shell, node_name, underlay_dev, underlay_addr)) {
+    throw OHNO_EXCEPT("Cannot get current Kubernetes node infos", false);
+  }
+  auto vxlan = std::make_unique<net::Vxlan>(underlay_addr, underlay_dev);
+  vxlan->setName(BGP_EVPN_VTEP);
+  if (!vxlan->setup(netlink_)) {
+    throw OHNO_EXCEPT("Create Vxlan device meets error: invalid Netlink", false);
+  }
+
+  evpn->setVrf(std::move(vrf));
+  evpn->setl3Bridge(std::move(bridge_l3));
+  evpn->setl2Bridge(std::move(bridge_l2));
+  evpn->setVxlan(std::move(vxlan));
+  return evpn;
 }
 
 } // namespace backend

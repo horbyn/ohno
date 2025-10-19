@@ -1,7 +1,9 @@
 // clang-format off
 #include "host_gw.h"
 #include "spdlog/fmt/fmt.h"
+#include "src/cni/cni_config.h"
 #include "src/common/assert.h"
+#include "src/common/enum_name.hpp"
 #include "src/common/except.h"
 #include "src/net/addr.h"
 #include "src/net/route.h"
@@ -15,7 +17,9 @@ namespace backend {
  *
  * @param node_name 当前 Kubernetes 节点名称
  */
-auto HostGw::start(std::string_view node_name) -> void { Backend::startImpl(node_name, "host-gw"); }
+auto HostGw::start(std::string_view node_name) -> void {
+  Backend::startImpl(node_name, enumName(cni::CniConfigIpam::Mode::host_gw));
+}
 
 /**
  * @brief 设置持久化对象
@@ -30,7 +34,9 @@ auto HostGw::setIpam(std::unique_ptr<ipam::IpamIf> ipam) -> void { ipam_ = std::
  * @param current_node 当前 Kubernetes 节点名称
  */
 auto HostGw::eventHandler(std::string_view current_node) -> void {
+  OHNO_ASSERT(center_ != nullptr);
   OHNO_ASSERT(ipam_ != nullptr);
+  OHNO_ASSERT(nic_ != nullptr);
 
   // 集群是直接从 Kubernetes api server 中获取的，包含所有节点
   auto cluster = center_->getKubernetesData();

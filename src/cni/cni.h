@@ -35,7 +35,6 @@ public:
   auto version() const -> std::string override;
 
 private:
-  auto getCurrentNodeInfo(const util::ShellIf *shell) -> bool;
   auto getStorageNic(std::string_view pod, std::string_view nic,
                      const std::weak_ptr<net::NetlinkIf> &netlink) -> std::shared_ptr<net::NicIf>;
   auto initKubernetesNode(const std::shared_ptr<ipam::NodeIf> &node, std::string_view node_subnet)

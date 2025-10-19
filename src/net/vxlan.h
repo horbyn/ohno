@@ -13,6 +13,8 @@ public:
 
   auto setup(std::weak_ptr<NetlinkIf> netlink) -> bool override;
 
+  auto setSlave(bool neigh_suppress, bool learning) const -> bool;
+
 private:
   std::string underlay_addr_;
   std::string underlay_dev_;
