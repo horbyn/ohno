@@ -31,9 +31,12 @@ auto Vxlan::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
   Nic::setup(netlink);
   auto name = Nic::getName();
   if (auto ntl = Nic::netlink_.lock()) {
-    if (ntl->vxlanCreate(name, underlay_addr_, underlay_dev_)) {
-      return true;
+    if (!ntl->linkExist(name)) {
+      if (!ntl->vxlanCreate(name, underlay_addr_, underlay_dev_)) {
+        return false;
+      }
     }
+    return true;
   }
 
   OHNO_LOG(warn, "Failed to setup Netlink for Vxlan {}", name);

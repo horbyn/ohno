@@ -20,9 +20,12 @@ auto Vrf::setup(std::weak_ptr<NetlinkIf> netlink) -> bool {
   Nic::setup(netlink);
   auto name = Nic::getName();
   if (auto ntl = Nic::netlink_.lock()) {
-    if (ntl->vrfCreate(name, table_)) {
-      return true;
+    if (!ntl->linkExist(name)) {
+      if (!ntl->vrfCreate(name, table_)) {
+        return false;
+      }
     }
+    return true;
   }
 
   OHNO_LOG(warn, "Failed to setup Netlink for Vxlan {}", name);
